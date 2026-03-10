@@ -244,12 +244,12 @@ function detectDefaultPlayerName(seed: string): string {
     return `DESKTOP-${seed.slice(0, 8).toUpperCase()}`;
   }
   if (platform.includes('linux') || ua.includes('linux')) {
-    if (ua.includes('arm') || ua.includes('raspberry')) return `raspberry-${seed.slice(0, 4)}`;
-    return 'debian';
+    if (ua.includes('arm') || ua.includes('raspberry')) return `Raspberry-${seed.slice(0, 4)}`;
+    return 'Debian';
   }
   if (platform.includes('mac') || ua.includes('mac os')) return 'macOS';
 
-  return `player-${seed.slice(0, 6)}`;
+  return `Player-${seed.slice(0, 6)}`;
 }
 
 function resolveIframeProfile(source: string, optimizedDomains: string[]): IframeSiteProfile | null {
@@ -359,6 +359,21 @@ function keepSingleUpcomingOccurrencePerSeries(occurrences: LocalCalendarOccurre
   });
 
   return picked.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+}
+
+function selectBoardDisplayWindow(occurrences: LocalCalendarOccurrence[], nowMs: number): LocalCalendarOccurrence[] {
+  if (occurrences.length === 0) return [];
+
+  const today = dayKey(new Date(nowMs).toISOString());
+  const todayItems = occurrences.filter((item) => dayKey(item.startAt) === today);
+  if (todayItems.length > 0) {
+    return todayItems;
+  }
+
+  const first = occurrences[0];
+  const firstDay = dayKey(first.startAt);
+  if (!firstDay) return occurrences;
+  return occurrences.filter((item) => dayKey(item.startAt) === firstDay);
 }
 
 function formatDayLabelFr(dateIso: string): string {
@@ -609,7 +624,6 @@ export function Player() {
   const [removingRows, setRemovingRows] = useState<Record<string, boolean>>({});
   const [clockNow, setClockNow] = useState(new Date());
   const [boardRows, setBoardRows] = useState<PlayerBoardRow[]>([]);
-  const boardScrollRef = useRef<HTMLDivElement | null>(null);
   const [resolvedAssetUrls, setResolvedAssetUrls] = useState<Record<string, string>>({});
   const [resolvedFooterLogoUrls, setResolvedFooterLogoUrls] = useState<Record<string, string>>({});
   const footerLogoUrlCacheRef = useRef<Record<string, string>>({});
@@ -620,6 +634,7 @@ export function Player() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const lastSyncOkRef = useRef<number>(Date.now());
   const footerMarqueeTrackRef = useRef<HTMLDivElement | null>(null);
+  const boardScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const effectiveTheme = useMemo(
     () => resolvePlayerTheme(groupTheme, assignedScreen?.theme, clockNow),
@@ -823,6 +838,101 @@ export function Player() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (layout?.mode !== 'room-status-board') return;
+    const container = boardScrollContainerRef.current;
+    if (!container) return;
+    const lowVisionEnabled = (layout?.displayTemplate ?? 'classic') === 'low-vision';
+
+    // Pause en haut et en bas pour améliorer la lisibilité sur écran mural.
+    const PAUSE_MS = 3500;
+    // Vitesse configurable (px/s), volontairement lente pour laisser le temps de lecture.
+    const SCROLL_SPEED_PX_PER_SECOND = lowVisionEnabled ? 24 : 24;
+
+    type ScrollPhase = 'pause-top' | 'scroll-down' | 'pause-bottom' | 'scroll-up';
+    let frameId = 0;
+    let phase: ScrollPhase = 'pause-top';
+    let phaseStartedAt = performance.now();
+    let previousTimestamp = 0;
+    let animatedOffset = 0;
+
+    // Réinitialise toujours la position au démarrage de l'animation sur la div cible.
+    container.scrollTop = 0;
+    animatedOffset = 0;
+
+    const tick = (timestamp: number) => {
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+
+      // Pas de débordement: on garde la position en haut et on n'anime pas.
+      if (maxScrollTop <= 0.5) {
+        animatedOffset = 0;
+        container.scrollTop = 0;
+        phase = 'pause-top';
+        phaseStartedAt = timestamp;
+        previousTimestamp = timestamp;
+        frameId = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const elapsedSeconds = previousTimestamp > 0
+        ? Math.max(0, (timestamp - previousTimestamp) / 1000)
+        : 0;
+      previousTimestamp = timestamp;
+
+      if (phase === 'pause-top') {
+        animatedOffset = 0;
+        container.scrollTop = 0;
+        if (timestamp - phaseStartedAt >= PAUSE_MS) {
+          phase = 'scroll-down';
+          previousTimestamp = timestamp;
+        }
+      } else if (phase === 'scroll-down') {
+        const progress = maxScrollTop > 0 ? Math.min(1, Math.max(0, animatedOffset / maxScrollTop)) : 0;
+        const easeFactor = 0.55 + (0.9 * Math.sin(progress * Math.PI));
+        animatedOffset = Math.min(maxScrollTop, animatedOffset + (SCROLL_SPEED_PX_PER_SECOND * easeFactor * elapsedSeconds));
+        container.scrollTop = animatedOffset;
+        const next = animatedOffset;
+        if (next >= maxScrollTop - 0.5) {
+          animatedOffset = maxScrollTop;
+          container.scrollTop = maxScrollTop;
+          phase = 'pause-bottom';
+          phaseStartedAt = timestamp;
+          previousTimestamp = timestamp;
+        }
+      } else if (phase === 'pause-bottom') {
+        animatedOffset = maxScrollTop;
+        container.scrollTop = maxScrollTop;
+        if (timestamp - phaseStartedAt >= PAUSE_MS) {
+          phase = 'scroll-up';
+          previousTimestamp = timestamp;
+        }
+      } else {
+        const progress = maxScrollTop > 0 ? Math.min(1, Math.max(0, animatedOffset / maxScrollTop)) : 0;
+        const easeFactor = 0.55 + (0.9 * Math.sin(progress * Math.PI));
+        animatedOffset = Math.max(0, animatedOffset - (SCROLL_SPEED_PX_PER_SECOND * easeFactor * elapsedSeconds));
+        container.scrollTop = animatedOffset;
+        const next = animatedOffset;
+        if (next <= 0.5) {
+          animatedOffset = 0;
+          container.scrollTop = 0;
+          phase = 'pause-top';
+          phaseStartedAt = timestamp;
+          previousTimestamp = timestamp;
+        }
+      }
+
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [layout?.mode, layout?.displayTemplate, boardRows.length, visibleRows.length]);
+
   const selectedRoomIds = useMemo(() => {
     if (!assignedScreen) return [] as string[];
     if (assignedScreen.roomIds && assignedScreen.roomIds.length > 0) return assignedScreen.roomIds;
@@ -893,7 +1003,8 @@ export function Player() {
         if (titleDiff !== 0) return titleDiff;
         return a.roomNumber.localeCompare(b.roomNumber, 'fr');
       });
-    const active = keepSingleUpcomingOccurrencePerSeries(activeRaw, now).slice(0, 9);
+    const deduped = keepSingleUpcomingOccurrencePerSeries(activeRaw, now);
+    const active = selectBoardDisplayWindow(deduped, now);
     setBoardRows(buildBoardRows(active, now));
 
     const activeIds = new Set(active.map((event) => event.id));
@@ -917,79 +1028,6 @@ export function Player() {
 
     setVisibleRows(active);
   }, [events, selectedRoomIds]);
-
-  useEffect(() => {
-    if (layout?.mode !== 'room-status-board') return;
-
-    const container = boardScrollRef.current;
-    if (!container) return;
-
-    const TOP_PAUSE_MS = 1800;
-    const BOTTOM_PAUSE_MS = 2400;
-    const SPEED_PX_PER_SECOND = 6;
-
-    let frameId = 0;
-    let lastTs = 0;
-    let phase: 'pause-top' | 'scroll-down' | 'pause-bottom' | 'scroll-up' = 'pause-top';
-    let phaseStart = performance.now();
-
-    container.scrollTop = 0;
-
-    const tick = (ts: number) => {
-      const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
-
-      if (maxScroll <= 0) {
-        container.scrollTop = 0;
-        phase = 'pause-top';
-        phaseStart = ts;
-        lastTs = ts;
-        frameId = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      if (phase === 'pause-top') {
-        if (ts - phaseStart >= TOP_PAUSE_MS) {
-          phase = 'scroll-down';
-          lastTs = ts;
-        }
-      } else if (phase === 'scroll-down') {
-        const deltaSec = lastTs > 0 ? (ts - lastTs) / 1000 : 0;
-        lastTs = ts;
-        const next = Math.min(maxScroll, container.scrollTop + SPEED_PX_PER_SECOND * deltaSec);
-        container.scrollTop = next;
-
-        if (next >= maxScroll - 1) {
-          container.scrollTop = maxScroll;
-          phase = 'pause-bottom';
-          phaseStart = ts;
-        }
-      } else if (phase === 'pause-bottom') {
-        if (ts - phaseStart >= BOTTOM_PAUSE_MS) {
-          phase = 'scroll-up';
-          lastTs = ts;
-        }
-      } else if (phase === 'scroll-up') {
-        const deltaSec = lastTs > 0 ? (ts - lastTs) / 1000 : 0;
-        lastTs = ts;
-        const next = Math.max(0, container.scrollTop - SPEED_PX_PER_SECOND * deltaSec);
-        container.scrollTop = next;
-
-        if (next <= 1) {
-          container.scrollTop = 0;
-          phase = 'pause-top';
-          phaseStart = ts;
-        }
-      }
-
-      frameId = window.requestAnimationFrame(tick);
-    };
-
-    frameId = window.requestAnimationFrame(tick);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [layout?.mode, boardRows]);
 
   useEffect(() => {
     if (!layout) {
@@ -1081,20 +1119,38 @@ export function Player() {
       return;
     }
 
+    const SPEED_PX_PER_SECOND = isLowVisionTemplate ? 26 : 30;
+
     let frameId = 0;
-    let lastTs = performance.now();
+    let lastTs = 0;
     let offsetPx = 0;
-    const speedPxPerSecond = isLowVisionTemplate ? 18 : 28;
+
+    track.style.transform = 'translate3d(0, 0, 0)';
 
     const tick = (timestamp: number) => {
-      const deltaSeconds = Math.max(0, (timestamp - lastTs) / 1000);
+      const viewportWidth = track.parentElement?.clientWidth ?? 0;
+      const loopWidth = track.scrollWidth / 2;
+      const maxOffset = Math.max(0, loopWidth - viewportWidth);
+
+      if (maxOffset <= 1) {
+        offsetPx = 0;
+        lastTs = timestamp;
+        track.style.transform = 'translate3d(0, 0, 0)';
+        frameId = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const deltaSeconds = lastTs > 0 ? Math.max(0, (timestamp - lastTs) / 1000) : 0;
       lastTs = timestamp;
 
-      const loopWidth = track.scrollWidth / 2;
-      if (loopWidth > 0) {
-        offsetPx = (offsetPx + speedPxPerSecond * deltaSeconds) % loopWidth;
-        track.style.transform = `translate3d(${-offsetPx}px, 0, 0)`;
+      // Défilement continu dans un seul sens (gauche), avec boucle infinie.
+      const loopProgress = loopWidth > 0 ? (offsetPx % loopWidth) / loopWidth : 0;
+      const easeFactor = 0.7 + (0.8 * Math.sin(loopProgress * Math.PI));
+      offsetPx += (SPEED_PX_PER_SECOND * easeFactor) * deltaSeconds;
+      if (offsetPx >= loopWidth) {
+        offsetPx = offsetPx % loopWidth;
       }
+      track.style.transform = `translate3d(${-offsetPx}px, 0, 0)`;
 
       frameId = window.requestAnimationFrame(tick);
     };
@@ -1514,7 +1570,7 @@ export function Player() {
         </div>
       ) : null}
 
-      <div className="flex-1 min-h-0 space-y-4 overflow-y-auto">
+      <div className={`flex-1 min-h-0 space-y-4 ${layout?.mode === 'room-status-board' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       {!layout ? (
         <div className="space-y-4">
           <div className="border rounded-[16px] p-10 text-center bg-[var(--player-card-bg)] border-[var(--player-border-strong)] text-[var(--player-fg)]">
@@ -1529,7 +1585,7 @@ export function Player() {
           {layout.mode === 'room-status-board' ? (
             <div className="space-y-4 h-full min-h-0 flex flex-col">
               <div className="border rounded-[16px] overflow-hidden bg-[var(--player-card-bg)] border-[var(--player-border-strong)] text-[var(--player-fg)]">
-                <div ref={boardScrollRef} className={`overflow-x-auto overflow-y-auto ${isLowVisionTemplate ? 'max-h-[68vh]' : ''}`}>
+                <div className="overflow-x-auto">
                   <div className={isLowVisionTemplate ? 'min-w-[1800px]' : 'min-w-[1200px]'}>
                     <div className={`grid grid-cols-6 [&>div]:min-w-0 [&>div]:text-center [&>div]:whitespace-normal [&>div]:break-words [&>div]:[overflow-wrap:anywhere] [&>div]:leading-tight uppercase tracking-wide text-[var(--player-muted)] bg-[#21293a] ${isLowVisionTemplate ? 'px-6 py-5 text-3xl font-black [&>div]:min-w-[260px]' : 'px-4 py-3 text-xs font-bold'}`}>
                       <div>Nom</div>
@@ -1539,11 +1595,15 @@ export function Player() {
                       <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>Date et heure de fin</div>
                       <div>Status</div>
                     </div>
-                    <div className="divide-y divide-[var(--player-divider)]">
-                      {visibleRows.length === 0 ? (
-                        <div className={`${isLowVisionTemplate ? 'p-6 text-3xl' : 'p-6'} text-[var(--player-muted)]`}>Aucun événement pour le moment.</div>
-                      ) : (
-                        boardRows.map((row, index) => {
+                    <div
+                      ref={boardScrollContainerRef}
+                      className={`${isLowVisionTemplate ? 'max-h-[68vh]' : 'max-h-[62vh]'} overflow-y-auto player-board-scroll`}
+                    >
+                      <div className="divide-y divide-[var(--player-divider)]">
+                        {visibleRows.length === 0 ? (
+                          <div className={`${isLowVisionTemplate ? 'p-6 text-3xl' : 'p-6'} text-[var(--player-muted)]`}>Aucun événement pour le moment.</div>
+                        ) : (
+                          boardRows.map((row, index) => {
                           if (row.kind === 'date') {
                             return (
                               <div
@@ -1600,8 +1660,9 @@ export function Player() {
                               <div className={`${status.textClass} ${isLowVisionTemplate ? 'font-black break-words [overflow-wrap:anywhere]' : ''}`}>{status.label}</div>
                             </div>
                           );
-                        })
-                      )}
+                          })
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1659,3 +1720,6 @@ export function Player() {
     </div>
   );
 }
+
+
+

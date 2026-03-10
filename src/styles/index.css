@@ -40,6 +40,14 @@
 	flex-shrink: 0;
 }
 
+.player-board-scroll {
+	-ms-overflow-style: none;
+}
+
+.player-board-scroll::-webkit-scrollbar {
+	display: none;
+}
+
 /* Accessibilité visuelle: augmenter uniquement les plus petites écritures */
 .text-xs {
 	font-size: 0.8125rem;
