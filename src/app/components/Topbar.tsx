@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, User, Moon, Sun, Menu, Info } from 'lucide-react';
-import { logoutAdmin } from '../../services/adminAuthService';
+import { getCurrentAdminSession, logoutAdmin } from '../../services/adminAuthService';
 import { appendSystemLog } from '../../services/logService';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { getSystemApiBase } from '../../services/systemApiBase';
 
 interface TopbarProps {
   darkMode?: boolean;
@@ -12,7 +13,11 @@ interface TopbarProps {
 
 export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: TopbarProps) {
   const navigate = useNavigate();
-  const location = useLocation();
+  const currentSession = getCurrentAdminSession();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [serverOnline, setServerOnline] = useState(true);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const statusLabel = useMemo(() => (serverOnline ? 'Connecté' : 'Déconnecté'), [serverOnline]);
 
   const onLogout = async () => {
     void appendSystemLog({
@@ -27,18 +32,51 @@ export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: Topbar
   };
 
   const onOpenAbout = () => {
-    if (location.pathname !== '/dashboard') {
-      navigate('/dashboard');
-      window.setTimeout(() => {
-        window.dispatchEvent(new Event('app:open-about'));
-      }, 0);
-      return;
-    }
-    window.dispatchEvent(new Event('app:open-about'));
+    navigate('/about');
   };
 
+  useEffect(() => {
+    let active = true;
+
+    const probe = async () => {
+      try {
+        const response = await fetch(`${getSystemApiBase()}/api/health`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        if (!active) return;
+        setServerOnline(response.ok);
+      } catch {
+        if (!active) return;
+        setServerOnline(false);
+      }
+    };
+
+    void probe();
+    const timer = window.setInterval(() => {
+      void probe();
+    }, 8000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', closeOnOutside);
+    return () => document.removeEventListener('mousedown', closeOnOutside);
+  }, [menuOpen]);
+
   return (
-    <div className="h-16 border-b border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.05)] backdrop-blur-[20px] flex items-center justify-between px-6">
+    <div className="relative z-[70] h-16 border-b border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.05)] backdrop-blur-[20px] flex items-center justify-between px-6">
       <div className="flex items-center gap-3 flex-1 max-w-md">
         {onOpenMenu ? (
           <button
@@ -87,15 +125,42 @@ export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: Topbar
           <span className="text-[#e5e7eb] text-sm">About</span>
         </button>
 
-        <button
-          className="flex items-center gap-2 p-2 hover:bg-[rgba(255,255,255,0.08)] rounded-[16px] transition-all duration-200"
-          onClick={onLogout}
-        >
-          <div className="w-8 h-8 bg-[#3b82f6] rounded-full flex items-center justify-center">
-            <User size={18} className="text-white" />
-          </div>
-          <span className="text-[#e5e7eb] text-sm">Admin (déconnexion)</span>
-        </button>
+        <div ref={menuRef} className="relative">
+          <button
+            className="flex items-center gap-2 p-2 hover:bg-[rgba(255,255,255,0.08)] rounded-[16px] transition-all duration-200"
+            onClick={() => setMenuOpen((value) => !value)}
+            type="button"
+          >
+            <div className="w-8 h-8 bg-[#3b82f6] rounded-full flex items-center justify-center">
+              <User size={18} className="text-white" />
+            </div>
+            <span className="text-[#e5e7eb] text-sm">{currentSession?.username || 'Admin'}</span>
+          </button>
+
+          {menuOpen ? (
+            <div className="absolute right-0 mt-2 w-64 rounded-[12px] border border-[rgba(255,255,255,0.14)] bg-[rgba(15,23,42,0.95)] backdrop-blur-[20px] p-3 shadow-xl z-[120] space-y-3">
+              <div>
+                <p className="text-xs text-[#9ca3af]">Utilisateur</p>
+                <p className="text-sm text-[#e5e7eb]">{currentSession?.username || 'admin'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[#9ca3af]">Rôle</p>
+                <p className="text-sm text-[#e5e7eb] uppercase">{currentSession?.role || 'admin'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[#9ca3af]">Statut serveur</p>
+                <p className={`text-sm ${serverOnline ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{statusLabel}</p>
+              </div>
+              <button
+                className="w-full mt-1 rounded-[10px] border border-[rgba(255,255,255,0.14)] px-3 py-2 text-sm text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.08)] transition-all duration-200"
+                onClick={onLogout}
+                type="button"
+              >
+                Logout
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

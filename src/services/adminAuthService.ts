@@ -20,12 +20,23 @@ export interface LoginResult {
   message?: string;
 }
 
+export interface AdminAuthStatusResult {
+  configured: boolean;
+  idleTimeoutMs: number;
+}
+
 interface SessionPayload {
   ok?: boolean;
   username?: string;
   role?: 'admin' | 'operator' | 'viewer' | string;
   idleTimeoutMs?: number;
   lastActivityAt?: number;
+  error?: string;
+}
+
+interface AuthStatusPayload {
+  configured?: boolean;
+  idleTimeoutMs?: number;
   error?: string;
 }
 
@@ -409,6 +420,49 @@ export async function loginAdmin(username: string, password: string): Promise<Lo
   } catch {
     setLastAuthError('Serveur indisponible. Vérifiez la connexion au serveur.');
     return { ok: false, message: 'Serveur indisponible.' };
+  }
+}
+
+export async function getAdminAuthStatus(): Promise<AdminAuthStatusResult> {
+  try {
+    const response = await fetch(`${getSystemApiBase()}/api/auth/status`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const payload = await response.json().catch(() => ({} as AuthStatusPayload));
+    return {
+      configured: Boolean(payload?.configured),
+      idleTimeoutMs: Number(payload?.idleTimeoutMs) > 0 ? Number(payload.idleTimeoutMs) : 20 * 60 * 1000
+    };
+  } catch {
+    return {
+      configured: true,
+      idleTimeoutMs: 20 * 60 * 1000
+    };
+  }
+}
+
+export async function bootstrapAdminAccount(username: string, password: string): Promise<LoginResult> {
+  try {
+    const response = await fetch(`${getSystemApiBase()}/api/auth/bootstrap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username: String(username || '').trim(), password })
+    });
+
+    const payload = await response.json().catch(() => ({} as SessionPayload));
+    if (!response.ok || !payload?.ok) {
+      const message = String(payload?.error || 'Initialisation admin impossible.');
+      setLastAuthError(message);
+      return { ok: false, message };
+    }
+
+    return { ok: true };
+  } catch {
+    const message = 'Serveur indisponible.';
+    setLastAuthError(message);
+    return { ok: false, message };
   }
 }
 

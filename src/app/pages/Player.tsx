@@ -849,6 +849,7 @@ export function Player() {
     // Vitesse configurable (px/s), volontairement lente pour laisser le temps de lecture.
     const SCROLL_SPEED_PX_PER_SECOND = lowVisionEnabled ? 24 : 24;
 
+    // Machine d'états du board pour un comportement lisible et prévisible.
     type ScrollPhase = 'pause-top' | 'scroll-down' | 'pause-bottom' | 'scroll-up';
     let frameId = 0;
     let phase: ScrollPhase = 'pause-top';
@@ -860,6 +861,7 @@ export function Player() {
     container.scrollTop = 0;
     animatedOffset = 0;
 
+    // Boucle d'animation: pilotage unique via requestAnimationFrame.
     const tick = (timestamp: number) => {
       const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
 
@@ -887,6 +889,7 @@ export function Player() {
           previousTimestamp = timestamp;
         }
       } else if (phase === 'scroll-down') {
+        // Easing in-out: plus rapide au centre, plus lent aux extrémités.
         const progress = maxScrollTop > 0 ? Math.min(1, Math.max(0, animatedOffset / maxScrollTop)) : 0;
         const easeFactor = 0.55 + (0.9 * Math.sin(progress * Math.PI));
         animatedOffset = Math.min(maxScrollTop, animatedOffset + (SCROLL_SPEED_PX_PER_SECOND * easeFactor * elapsedSeconds));
@@ -907,6 +910,7 @@ export function Player() {
           previousTimestamp = timestamp;
         }
       } else {
+        // Même profil d'easing au retour pour un mouvement symétrique.
         const progress = maxScrollTop > 0 ? Math.min(1, Math.max(0, animatedOffset / maxScrollTop)) : 0;
         const easeFactor = 0.55 + (0.9 * Math.sin(progress * Math.PI));
         animatedOffset = Math.max(0, animatedOffset - (SCROLL_SPEED_PX_PER_SECOND * easeFactor * elapsedSeconds));
@@ -1127,6 +1131,7 @@ export function Player() {
 
     track.style.transform = 'translate3d(0, 0, 0)';
 
+    // Marquee logos en boucle continue (sens unique) avec easing périodique.
     const tick = (timestamp: number) => {
       const viewportWidth = track.parentElement?.clientWidth ?? 0;
       const loopWidth = track.scrollWidth / 2;

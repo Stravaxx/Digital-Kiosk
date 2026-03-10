@@ -93,41 +93,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           );
         })}
       </nav>
-
-      <div className="border-t border-[rgba(255,255,255,0.12)] p-4 space-y-3">
-        <p className="text-xs uppercase tracking-wide text-[#9ca3af]">Comptes</p>
-        <div className="space-y-2 max-h-40 overflow-y-auto">
-          {accounts.length === 0 ? (
-            <p className="text-sm text-[#9ca3af]">Aucun compte en session.</p>
-          ) : (
-            accounts.map((account) => (
-              <button
-                key={account.username}
-                type="button"
-                onClick={() => handleSwitchAccount(account.username)}
-                className={`w-full text-left rounded-[10px] px-3 py-2 text-sm border transition-all duration-200 ${account.isActive
-                  ? 'bg-[rgba(59,130,246,0.2)] border-[#3b82f6] text-[#bfdbfe]'
-                  : 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.12)] text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.08)]'
-                }`}
-                disabled={account.isActive}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate">{account.username}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-[#9ca3af]">{account.role}</span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 rounded-[12px] border border-[rgba(255,255,255,0.12)] px-3 py-2 text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.08)] transition-all duration-200"
-        >
-          <LogOut size={16} />
-          <span>{currentSession ? `Déconnexion (${currentSession.username})` : 'Déconnexion'}</span>
-        </button>
-      </div>
     </div>
   );
 }

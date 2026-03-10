@@ -34,6 +34,13 @@ npm run dev
 - `npm run docs:build` : build docs
 - `npm run docs:preview` : preview docs
 
+Guides principaux:
+
+- `docs/index.md` : point d'entrée documentation
+- `docs/guide/user-manual.md` : guide utilisateur complet (admin + player)
+- `docs/guide/developer-handbook.md` : guide développeur (architecture, conventions, workflows)
+- `docs/reference/api.md` : référence API complète (endpoints, exemples, erreurs)
+
 ## Stockage système
 
 - Backend principal: SQLite local (`database/system.db`) sans serveur externe.

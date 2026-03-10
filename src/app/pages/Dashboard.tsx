@@ -80,6 +80,7 @@ export function Dashboard() {
   // Charger dynamiquement les réunions et activités depuis API système
   const [upcomingMeetings, setUpcomingMeetings] = React.useState<any[]>([]);
   const [recentActivity, setRecentActivity] = React.useState<any[]>([]);
+  const [screens, setScreens] = React.useState<any[]>([]);
   const [dashboardLoadError, setDashboardLoadError] = React.useState('');
   React.useEffect(() => {
     let active = true;
@@ -88,27 +89,31 @@ export function Dashboard() {
       try {
         setDashboardLoadError('');
         const base = getSystemApiBase();
-        const [meetingsRes, activityRes] = await Promise.all([
+        const [meetingsRes, activityRes, screensRes] = await Promise.all([
           fetch(`${base}/api/meetings`, { cache: 'no-store', credentials: 'include' }),
-          fetch(`${base}/api/activity`, { cache: 'no-store', credentials: 'include' })
+          fetch(`${base}/api/activity`, { cache: 'no-store', credentials: 'include' }),
+          fetch(`${base}/api/screens`, { cache: 'no-store', credentials: 'include' })
         ]);
 
-        if (!meetingsRes.ok || !activityRes.ok) {
+        if (!meetingsRes.ok || !activityRes.ok || !screensRes.ok) {
           throw new Error('Chargement dashboard échoué');
         }
 
-        const [meetings, activity] = await Promise.all([
+        const [meetings, activity, screensRows] = await Promise.all([
           meetingsRes.json(),
-          activityRes.json()
+          activityRes.json(),
+          screensRes.json()
         ]);
 
         if (!active) return;
         setUpcomingMeetings(Array.isArray(meetings) ? meetings : []);
         setRecentActivity(Array.isArray(activity) ? activity : []);
+        setScreens(Array.isArray(screensRows) ? screensRows : []);
       } catch {
         if (!active) return;
         setUpcomingMeetings([]);
         setRecentActivity([]);
+        setScreens([]);
         setDashboardLoadError('Connexion au serveur perdue ou réponse invalide. Vérifiez l’accès au serveur puis rechargez la page.');
       }
     };
@@ -130,6 +135,10 @@ export function Dashboard() {
     }
   };
 
+  const screensOnline = screens.filter((item) => String(item?.status || '').toLowerCase() === 'online').length;
+  const screensOffline = screens.filter((item) => String(item?.status || '').toLowerCase() !== 'online' && String(item?.status || '').toLowerCase() !== 'pending').length;
+  const screensPending = screens.filter((item) => String(item?.status || '').toLowerCase() === 'pending').length;
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       <div>
@@ -144,13 +153,13 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Screens Online"
-          value="0"
+          value={String(screensOnline)}
           icon={<Monitor size={40} />}
           color="primary"
         />
         <StatCard
           title="Screens Offline"
-          value="0"
+          value={String(screensOffline)}
           icon={<AlertCircle size={40} />}
           color="danger"
         />
@@ -276,11 +285,40 @@ export function Dashboard() {
           <Monitor className="text-[#3b82f6]" size={24} />
           <h2 className="text-lg text-[#e5e7eb]">Screen Status</h2>
         </div>
-        <div className="text-center py-12 text-[#9ca3af]">
-          <Monitor size={48} className="mx-auto mb-4 opacity-50" />
-          <p className="mb-2">No screens registered</p>
-          <p className="text-sm">Les players apparaissent ici après liaison PIN/QR.</p>
-        </div>
+        {screens.length === 0 ? (
+          <div className="text-center py-12 text-[#9ca3af]">
+            <Monitor size={48} className="mx-auto mb-4 opacity-50" />
+            <p className="mb-2">No screens registered</p>
+            <p className="text-sm">Les players apparaissent ici après liaison PIN/QR.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span className="px-2 py-1 rounded-[10px] bg-[rgba(34,197,94,0.15)] text-[#86efac]">Online: {screensOnline}</span>
+              <span className="px-2 py-1 rounded-[10px] bg-[rgba(239,68,68,0.15)] text-[#fca5a5]">Offline: {screensOffline}</span>
+              <span className="px-2 py-1 rounded-[10px] bg-[rgba(245,158,11,0.15)] text-[#fcd34d]">Pending: {screensPending}</span>
+            </div>
+            {screens.slice(0, 8).map((screen) => {
+              const rawStatus = String(screen?.status || '').toLowerCase();
+              const status = rawStatus === 'online' ? 'online' : (rawStatus === 'pending' ? 'pending' : 'offline');
+              const statusClass = status === 'online'
+                ? 'text-[#86efac]'
+                : status === 'pending'
+                  ? 'text-[#fcd34d]'
+                  : 'text-[#fca5a5]';
+
+              return (
+                <div key={String(screen?.id || screen?.deviceId || Math.random())} className="flex items-center justify-between p-3 bg-[rgba(255,255,255,0.04)] rounded-[12px]">
+                  <div className="min-w-0">
+                    <p className="text-[#e5e7eb] text-sm truncate">{String(screen?.name || screen?.deviceId || 'Screen')}</p>
+                    <p className="text-[#9ca3af] text-xs truncate">{String(screen?.ip || 'N/A')} • {String(screen?.os || 'N/A')}</p>
+                  </div>
+                  <span className={`text-xs uppercase ${statusClass}`}>{status}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </GlassCard>
 
       {aboutOpen && (

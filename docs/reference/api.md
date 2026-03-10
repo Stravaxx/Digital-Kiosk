@@ -3,79 +3,130 @@
 ## Base URL
 
 - Dev API: `http://127.0.0.1:8787`
-- Prod mono-serveur: `http://127.0.0.1:4173`
+- Prod unifiée: `http://127.0.0.1:4173`
+- Selon mode de déploiement, le panel et l’API peuvent être séparés.
 
-## Endpoints principaux
+## Authentification
 
-### Auth
-
-- `POST /api/auth/bootstrap`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/session`
-
-### Public (sans session admin)
+### Routes publiques (sans session admin)
 
 - `GET /api/health`
 - `GET /api/settings`
 - `GET /api/player/context`
 - `GET /api/playlists`
-- `GET /api/player/authorize`
 - `GET /api/player/bootstrap`
+- `GET /api/player/authorize`
+- `POST /api/player/pair/start`
+- `POST /api/player/enroll`
+- `POST /api/player/heartbeat`
+- `POST /api/player/command-ack`
+- `POST /api/player/rotate-token`
+- `POST /api/screens/pair/claim`
 - `GET /api/assets/:id/blob`
-- `POST /api/player/enroll`
-- `POST /api/player/heartbeat`
-- `POST /api/player/command-ack`
-- `POST /api/player/rotate-token`
-- `POST /api/player/pair/start`
-- `POST /api/screens/register`
-- `POST /api/screens/heartbeat`
-- `POST /api/screens/pair/claim`
 
-> Note: `POST /api/screens/register` et `POST /api/screens/heartbeat` sont conservés pour compatibilité mais renvoient désormais `410` (découverte réseau retirée).
+### Routes admin (session requise)
 
-### Screens / Player
+- Auth users/session
+- Layouts/playlists/assets CRUD
+- Screens command/bulk
+- Monitoring/alerts/ops
+- Storage/system KV
 
-- `GET /api/screens`
-- `POST /api/screens/register`
-- `POST /api/screens/heartbeat`
-- `POST /api/screens/pair/claim`
-- `GET /api/player/authorize`
-- `GET /api/player/bootstrap`
-- `POST /api/player/enroll`
-- `POST /api/player/heartbeat`
-- `POST /api/player/command-ack`
-- `POST /api/player/pair/start`
-- `POST /api/player/rotate-token`
-- `POST /api/screens/:screenId/command`
-- `POST /api/screens/commands/bulk`
-- `POST /api/screens/rotate-token/bulk`
+Erreurs auth fréquentes:
 
-### Monitoring / Alerts / Ops
+- `401 missing token`
+- `401 session expired`
 
-- `GET /api/monitoring/fleet`
-- `GET /api/alerts`
-- `GET /api/alerts/config`
-- `PUT /api/alerts/config`
-- `POST /api/alerts/:alertId/ack`
-- `POST /api/alerts/:alertId/silence`
-- `GET /api/ops/sla`
-- `GET /api/audit`
-- `GET /api/storage/policy`
-- `PUT /api/storage/policy`
+## Endpoints par domaine
 
-## Flux recommandé (PIN / QR uniquement)
+## Santé / configuration
 
-1. Le player appelle `POST /api/player/pair/start`.
-2. Le player affiche le PIN + QR (vers `/screens?pin=XXXXXX`).
-3. L’admin saisit/valide le PIN via `POST /api/screens/pair/claim`.
-4. Le player devient autorisé (`GET /api/player/authorize`) puis envoie `POST /api/player/heartbeat`.
+### `GET /api/health`
 
-## Exemples d’API
+Réponse:
 
-### Démarrer le pairage PIN
+```json
+{
+  "ok": true,
+  "storage": "system"
+}
+```
 
-`POST /api/player/pair/start`
+### `GET /api/settings`
+
+Réponse (extrait):
+
+```json
+{
+  "ok": true,
+  "storage": "system",
+  "schemaVersion": 2,
+  "iframeDomainWhitelist": ["youtube.com"],
+  "systemConfig": {}
+}
+```
+
+## Auth admin
+
+### `POST /api/auth/bootstrap`
+
+Crée le premier compte admin.
+
+Body:
+
+```json
+{
+  "username": "admin",
+  "password": "StrongPassword123"
+}
+```
+
+Codes:
+
+- `201` créé
+- `400` validation
+- `409` déjà configuré
+
+### `POST /api/auth/login`
+
+Body:
+
+```json
+{
+  "username": "admin",
+  "password": "StrongPassword123"
+}
+```
+
+Réponse:
+
+```json
+{
+  "ok": true,
+  "username": "admin",
+  "role": "admin"
+}
+```
+
+### `POST /api/auth/logout`
+
+Invalide la session courante.
+
+### `GET /api/auth/session`
+
+Retourne les informations de session courante.
+
+## Pairing player
+
+## Flux recommandé
+
+1. `POST /api/player/pair/start`
+2. Affichage PIN/QR sur le player
+3. `POST /api/screens/pair/claim`
+4. `GET /api/player/authorize`
+5. `POST /api/player/heartbeat`
+
+### `POST /api/player/pair/start`
 
 Body:
 
@@ -95,14 +146,11 @@ Réponse:
 {
   "ok": true,
   "pin": "123456",
-  "expiresAt": "2026-03-09T15:45:00.000Z",
-  "ip": "192.168.1.50"
+  "expiresAt": "2026-03-09T15:45:00.000Z"
 }
 ```
 
-### Valider un PIN côté admin
-
-`POST /api/screens/pair/claim`
+### `POST /api/screens/pair/claim`
 
 Body:
 
@@ -118,18 +166,45 @@ Réponse:
 {
   "ok": true,
   "screen": {
-    "id": "screen-1773071212970",
-    "deviceId": "rpi-01",
+    "id": "screen-1",
     "status": "online"
   }
 }
 ```
 
-### Heartbeat player (après pairage)
+Erreurs:
 
-`POST /api/player/heartbeat`
+- `400` PIN manquant/format invalide
+- `404` PIN inconnu ou expiré
 
-Body:
+## Player runtime
+
+### `GET /api/player/authorize`
+
+Query:
+
+- `deviceId`
+- `token`
+
+Réponse:
+
+```json
+{
+  "authorized": true
+}
+```
+
+### `GET /api/player/bootstrap`
+
+Renvoie écran + layout assignés.
+
+### `POST /api/player/enroll`
+
+Enrôlement initial d’un player.
+
+### `POST /api/player/heartbeat`
+
+Body (extrait):
 
 ```json
 {
@@ -148,32 +223,17 @@ Body:
 }
 ```
 
-Réponse OK:
+Réponse typique:
 
 ```json
 {
   "ok": true,
   "status": "online",
-  "command": {
-    "command": "refresh",
-    "issuedAt": "2026-03-09T12:00:00.000Z",
-    "signature": "..."
-  }
+  "command": null
 }
 ```
 
-Réponse non pairé:
-
-```json
-{
-  "ok": false,
-  "error": "screen not paired"
-}
-```
-
-### ACK de commande player
-
-`POST /api/player/command-ack`
+### `POST /api/player/command-ack`
 
 Body:
 
@@ -187,124 +247,37 @@ Body:
 }
 ```
 
-Réponse:
+## Contenu (admin)
 
-```json
-{
-  "ok": true
-}
-```
+### Layouts
 
-Notes:
+- `GET /api/layouts`
+- `POST /api/layouts`
+- `DELETE /api/layouts/:id`
 
-- Le couple `deviceId` + `token` doit correspondre à l’écran pairé.
-- Si une commande n’est jamais acquittée, le serveur la réessaie via `/api/player/heartbeat` jusqu’à `maxRetries`, puis la marque en échec (`timeout-no-ack`).
+### Playlists
 
-### Settings système (config + schéma DB)
+- `GET /api/playlists`
+- `POST /api/playlists`
+- `DELETE /api/playlists/:id`
 
-`GET /api/settings`
+### Assets
 
-Réponse:
+- `GET /api/assets`
+- `POST /api/assets` (multipart)
+- `POST /api/assets/import`
+- `GET /api/assets/:id/blob`
+- `DELETE /api/assets/:id`
 
-```json
-{
-  "ok": true,
-  "storage": "system",
-  "schemaVersion": 2,
-  "systemConfig": {}
-}
-```
+## Screens / commandes
 
-### Storage Management
+- `GET /api/screens`
+- `POST /api/screens/:screenId/command`
+- `POST /api/screens/commands/bulk`
+- `POST /api/screens/rotate-token/bulk`
+- `POST /api/player/rotate-token`
 
-- `GET /api/storage/stats`
-- `POST /api/storage/clear-cache`
-- `GET /api/storage/policy`
-- `PUT /api/storage/policy`
-
-Exemple `GET /api/storage/stats`:
-
-```json
-{
-  "totalAssets": 12,
-  "totalSize": 15423012,
-  "cacheSize": 1200000,
-  "logsCount": 230,
-  "logsSize": 46000,
-  "dbEngine": "sqlite",
-  "dbPath": ".../database/system.db",
-  "policy": {
-    "maxAssetBytes": 6442450944,
-    "maxCacheBytes": 1073741824,
-    "logsRetentionDays": 30,
-    "autoPurge": true,
-    "staleHeartbeatSeconds": 90
-  }
-}
-
-### Fleet Monitoring
-
-`GET /api/monitoring/fleet`
-
-Réponse:
-
-```json
-{
-  "ok": true,
-  "summary": {
-    "total": 4,
-    "online": 3,
-    "stale": 1,
-    "pending": 0,
-    "offline": 0
-  },
-  "items": [
-    {
-      "id": "screen-1",
-      "name": "Accueil",
-      "status": "online",
-      "heartbeatAgeMs": 4200,
-      "telemetry": {
-        "cpuPercent": 21,
-        "memoryPercent": 39,
-        "temperatureC": 0,
-        "diskUsedPercent": 58,
-        "version": "1.0.0"
-      }
-    }
-  ]
-}
-```
-
-### Centre d’alertes
-
-- `GET /api/alerts` : liste des alertes actives (offline/stale/température/stockage)
-- `GET /api/alerts/config` : lecture des seuils
-- `PUT /api/alerts/config` : mise à jour des seuils
-- `POST /api/alerts/:alertId/ack` : passe une alerte en statut `ack`
-- `POST /api/alerts/:alertId/silence` : silence une alerte (30 min par défaut)
-
-Cycle de vie persistant: `new` → `ack` / `silenced` → `resolved`.
-
-Exemple `PUT /api/alerts/config` body:
-
-```json
-{
-  "config": {
-    "offlineAfterSeconds": 240,
-    "staleAfterSeconds": 120,
-    "maxTemperatureC": 78,
-    "maxStorageUsagePercent": 88,
-    "maxHeartbeatLatencyMs": 30000
-  }
-}
-```
-
-### Actions groupées écrans
-
-`POST /api/screens/commands/bulk`
-
-Body:
+Exemple bulk command:
 
 ```json
 {
@@ -313,33 +286,53 @@ Body:
 }
 ```
 
-`POST /api/screens/rotate-token/bulk`
+## Monitoring / alertes / ops
 
-Body:
+- `GET /api/monitoring/fleet`
+- `GET /api/alerts`
+- `GET /api/alerts/config`
+- `PUT /api/alerts/config`
+- `POST /api/alerts/:alertId/ack`
+- `POST /api/alerts/:alertId/silence`
+- `GET /api/ops/sla`
+- `GET /api/audit`
 
-```json
-{
-  "screenIds": ["screen-1", "screen-2"]
-}
-```
+## Stockage / système
 
-### Ops / audit
+- `GET /api/storage/stats`
+- `POST /api/storage/clear-cache`
+- `GET /api/storage/policy`
+- `PUT /api/storage/policy`
+- `GET /api/system/kv/:key`
+- `PUT /api/system/kv/:key`
 
-- `GET /api/ops/sla` : disponibilité, incidents 24h, MTTR simplifié
-- `GET /api/audit` : historique d’audit (filtres `type`, `actor`, `search`, `limit`)
-```
+## Endpoints legacy
 
-### Contenu
+Les endpoints suivants sont conservés pour compatibilité mais ne doivent plus être utilisés:
 
-- `GET /api/layouts`
-- `POST /api/layouts`
-- `GET /api/playlists`
-- `POST /api/playlists`
-- `GET /api/assets`
-- `POST /api/assets`
+- `POST /api/screens/register` → `410`
+- `POST /api/screens/heartbeat` → `410`
 
-## API générée automatiquement
+## Erreurs courantes
 
-La documentation API TypeDoc est publiée dans:
+| Code | Cas typique | Action recommandée |
+|---|---|---|
+| 400 | Payload invalide | Vérifier champs requis et formats |
+| 401 | Token absent/expiré | Reconnexion admin / vérifier token player |
+| 403 | Route non autorisée selon `SERVER_MODE` | Vérifier mode serveur et route appelée |
+| 404 | Ressource introuvable | Vérifier ID/PIN et expiration |
+| 409 | Conflit métier | Vérifier état existant avant création |
+| 410 | Endpoint retiré (legacy) | Migrer vers route moderne |
+| 500 | Erreur interne | Consulter logs serveur et audit |
 
-- `/docs/api/index.html`
+## Exemples d’usages possibles
+
+- Pairing PIN/QR en environnement kiosque.
+- Rotation massive de token après incident sécurité.
+- Commande `refresh` groupée sur un étage complet.
+- Politique storage plus stricte en sites à disque limité.
+- Monitoring centralisé avec traitement d’alertes `ack/silence`.
+
+## Documentation API générée
+
+- TypeDoc front: `/docs/api/index.html`

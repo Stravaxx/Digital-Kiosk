@@ -1215,6 +1215,38 @@ async function calculateCacheSizeBytes() {
   return cacheSize;
 }
 
+async function resolveSystemDiskCapacityBytes(targetPath) {
+  const fallbackTotalBytes = 20 * 1024 * 1024 * 1024;
+
+  try {
+    if (typeof fsp.statfs === 'function') {
+      const stats = await fsp.statfs(targetPath);
+      const blockSize = Number(stats?.bsize || stats?.frsize || 0);
+      const blocks = Number(stats?.blocks || 0);
+      const availableBlocks = Number(stats?.bavail ?? stats?.bfree ?? 0);
+
+      if (Number.isFinite(blockSize) && Number.isFinite(blocks) && blockSize > 0 && blocks > 0) {
+        const totalBytes = Math.max(0, blockSize * blocks);
+        const freeBytes = Math.max(0, blockSize * Math.max(0, availableBlocks));
+        const usedBytes = Math.max(0, totalBytes - freeBytes);
+        return {
+          totalBytes,
+          usedBytes,
+          source: 'statfs'
+        };
+      }
+    }
+  } catch {
+    // fallback below
+  }
+
+  return {
+    totalBytes: fallbackTotalBytes,
+    usedBytes: 0,
+    source: 'fallback-20gb'
+  };
+}
+
 function buildFleetSnapshot(db, now = Date.now()) {
   const screens = getCollectionRecords(db, 'screens');
   const policy = getStoragePolicy(db);
@@ -1569,6 +1601,8 @@ app.use((req, res, next) => {
   return next();
 });
 
+// --- API publique: santé et configuration runtime ---
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, storage: 'system' });
 });
@@ -1607,6 +1641,8 @@ app.get('/api/system/sync-stream', (_req, res) => {
     error: 'SSE retiré. Utiliser WebSocket /ws/system-sync.'
   });
 });
+
+// --- Authentification admin: bootstrap, login, session, gestion des utilisateurs ---
 
 app.get('/api/auth/status', async (_req, res) => {
   const db = await readDb();
@@ -2149,6 +2185,7 @@ app.get('/api/storage/stats', async (_req, res) => {
     sqliteEnabled = false;
   }
   const cacheSize = await calculateCacheSizeBytes();
+  const diskCapacity = await resolveSystemDiskCapacityBytes(STORAGE_DIR);
 
   res.json({
     totalAssets,
@@ -2159,6 +2196,9 @@ app.get('/api/storage/stats', async (_req, res) => {
     assetsDir: ASSETS_DIR,
     dbPath: sqliteEnabled ? SQLITE_DB_PATH : DB_PATH,
     dbEngine: sqliteEnabled ? 'sqlite' : 'json',
+    diskTotalBytes: Number(diskCapacity.totalBytes) || 0,
+    diskUsedBytes: Number(diskCapacity.usedBytes) || 0,
+    diskCapacitySource: String(diskCapacity.source || 'fallback-20gb'),
     policy: getStoragePolicy(db)
   });
 });

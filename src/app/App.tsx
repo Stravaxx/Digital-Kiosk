@@ -19,6 +19,7 @@ import { Alerts } from './pages/Alerts';
 import { Ops } from './pages/Ops';
 import { Player } from './pages/Player';
 import { Login } from './pages/Login';
+import { About } from './pages/About';
 import { isAdminAuthenticated } from '../services/adminAuthService';
 import { hydrateManyKeysFromDb, requestPersistentSystemStorage, syncLocalStorageKeyFromSystem } from '../services/clientDbStorage';
 import { LAYOUTS_KEY } from '../shared/layoutRegistry';
@@ -180,6 +181,7 @@ export default function App() {
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/ops" element={<Ops />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/about" element={<About />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -14,6 +14,11 @@ Documentation complète du projet Digital Signage.
 
 - [Vue d'ensemble](./guide/overview)
 - [Installation](./guide/installation)
+- [Guide utilisateur](./guide/user-manual)
+- [Manuel onglet Dashboard](./guide/manual/dashboard)
+- [Manuel onglet Screens](./guide/manual/screens)
+- [Manuel types de configuration](./guide/manual/configuration-types)
+- [Guide développeur](./guide/developer-handbook)
 - [Authentification](./guide/authentication)
 - [Player & Pairing PIN](./guide/player-pairing)
 - [Agent Kiosk C++](./guide/kiosk-agent-cpp)

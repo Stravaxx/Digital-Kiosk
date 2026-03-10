@@ -11,12 +11,18 @@ export function Storage() {
     cacheSize: 0,
     logsSize: 0,
     dbEngine: 'json',
-    dbPath: ''
+    dbPath: '',
+    diskTotalBytes: 20 * 1024 * 1024 * 1024,
+    diskUsedBytes: 0,
+    diskCapacitySource: 'fallback-20gb'
   });
   const [busy, setBusy] = React.useState(false);
 
   const toGb = (value: number) => `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   const totalUsed = stats.totalSize + stats.cacheSize + stats.logsSize;
+  const storageLimit = Number(stats.diskTotalBytes) > 0 ? Number(stats.diskTotalBytes) : 20 * 1024 * 1024 * 1024;
+  const diskUsed = Number(stats.diskUsedBytes) > 0 ? Number(stats.diskUsedBytes) : totalUsed;
+  const diskUsagePct = Math.min(100, Math.max(0, Math.round((diskUsed / Math.max(storageLimit, 1)) * 100)));
   const safeTotal = Math.max(totalUsed, 1);
   const assetsPct = Math.round((stats.totalSize / safeTotal) * 100);
   const cachePct = Math.round((stats.cacheSize / safeTotal) * 100);
@@ -33,7 +39,10 @@ export function Storage() {
         cacheSize: Number(payload?.cacheSize) || 0,
         logsSize: Number(payload?.logsSize) || 0,
         dbEngine: String(payload?.dbEngine || 'json'),
-        dbPath: String(payload?.dbPath || '')
+        dbPath: String(payload?.dbPath || ''),
+        diskTotalBytes: Number(payload?.diskTotalBytes) > 0 ? Number(payload.diskTotalBytes) : 20 * 1024 * 1024 * 1024,
+        diskUsedBytes: Number(payload?.diskUsedBytes) || 0,
+        diskCapacitySource: String(payload?.diskCapacitySource || 'fallback-20gb')
       });
     } catch {
       // keep previous state
@@ -70,7 +79,7 @@ export function Storage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
           title="Total Storage"
-          value={toGb(totalUsed)}
+          value={`${toGb(diskUsed)} / ${toGb(storageLimit)}`}
           icon={<HardDrive size={40} />}
           color="primary"
         />
@@ -90,6 +99,13 @@ export function Storage() {
 
       <GlassCard className="p-6">
         <h2 className="text-lg text-[#e5e7eb] mb-4">Storage Distribution</h2>
+        <div className="mb-4">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[#9ca3af]">Utilisation disque système</span>
+            <span className="text-[#e5e7eb]">{diskUsagePct}%</span>
+          </div>
+          <progress className="w-full h-2 rounded-full overflow-hidden storage-progress storage-progress-assets" max={100} value={diskUsagePct} />
+        </div>
         <div className="space-y-4">
           <div>
             <div className="flex justify-between text-sm mb-2">
@@ -116,6 +132,7 @@ export function Storage() {
         <div className="mt-4 text-xs text-[#9ca3af]">
           <div>Moteur DB: {stats.dbEngine}</div>
           <div className="truncate">Chemin DB: {stats.dbPath || 'N/A'}</div>
+          <div>Capacité disque: {toGb(storageLimit)} ({stats.diskCapacitySource})</div>
           <div>Assets: {stats.totalAssets}</div>
         </div>
       </GlassCard>

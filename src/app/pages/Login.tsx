@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { LockKeyhole, LogIn } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { GlassButton } from '../components/GlassButton';
-import { adoptAdminToken, consumeLastAuthError, getAdminToken, isAdminAuthenticated, loginAdmin, verifyCurrentAdminConnection } from '../../services/adminAuthService';
+import { adoptAdminToken, bootstrapAdminAccount, consumeLastAuthError, getAdminAuthStatus, getAdminToken, isAdminAuthenticated, loginAdmin, verifyCurrentAdminConnection } from '../../services/adminAuthService';
 import { appendSystemLog } from '../../services/logService';
 
 export function Login() {
@@ -10,6 +10,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checkingToken, setCheckingToken] = useState(true);
+  const [requiresBootstrap, setRequiresBootstrap] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -19,6 +20,10 @@ export function Login() {
     }
 
     const bootstrapLogin = async () => {
+      const authStatus = await getAdminAuthStatus();
+      if (!active) return;
+      setRequiresBootstrap(!authStatus.configured);
+
       const url = new URL(window.location.href);
       const tokenFromUrl = String(url.searchParams.get('token') || url.searchParams.get('adminToken') || '').trim();
 
@@ -56,13 +61,28 @@ export function Login() {
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+
+    if (!username.trim() || !password) {
+      setError('Identifiant et mot de passe requis.');
+      return;
+    }
+
+    if (requiresBootstrap) {
+      const boot = await bootstrapAdminAccount(username, password);
+      if (!boot.ok) {
+        setError(boot.message ?? 'Initialisation refusée.');
+        return;
+      }
+      setRequiresBootstrap(false);
+    }
+
     const result = await loginAdmin(username, password);
     if (!result.ok) {
       void appendSystemLog({
         type: 'auth',
         level: 'warning',
         source: 'ui.login',
-        message: 'Échec de connexion admin',
+        message: requiresBootstrap ? 'Échec après initialisation admin' : 'Échec de connexion admin',
         details: { username: username.trim() }
       });
       setError(result.message ?? 'Connexion refusée.');
@@ -73,7 +93,7 @@ export function Login() {
       type: 'auth',
       level: 'info',
       source: 'ui.login',
-      message: 'Connexion admin réussie',
+      message: requiresBootstrap ? 'Initialisation et connexion admin réussies' : 'Connexion admin réussie',
       details: { username: username.trim() }
     });
 
@@ -88,6 +108,9 @@ export function Login() {
             <LockKeyhole size={20} className="text-[#3b82f6]" />
           </div>
           <h1 className="text-2xl text-[#e5e7eb]">Connexion Administrateur</h1>
+          {requiresBootstrap ? (
+            <p className="text-sm text-[#9ca3af] mt-2">Première configuration détectée : créez le compte administrateur principal.</p>
+          ) : null}
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4 max-w-sm mx-auto w-full">
@@ -115,7 +138,7 @@ export function Login() {
 
           <GlassButton type="submit" className="w-full" disabled={checkingToken}>
             <LogIn size={16} className="mr-2" />
-            {checkingToken ? 'Vérification en cours…' : 'Se connecter'}
+            {checkingToken ? 'Vérification en cours…' : (requiresBootstrap ? 'Créer l\'admin et se connecter' : 'Se connecter')}
           </GlassButton>
         </form>
       </GlassCard>
