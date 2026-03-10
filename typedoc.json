@@ -1,0 +1,20 @@
+{
+  "entryPoints": [
+    "src/services/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/api/**/*.ts",
+    "src/player/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.d.ts"
+  ],
+  "out": "docs-api",
+  "tsconfig": "tsconfig.json",
+  "name": "Digital Signage API",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "sort": ["source-order"]
+}

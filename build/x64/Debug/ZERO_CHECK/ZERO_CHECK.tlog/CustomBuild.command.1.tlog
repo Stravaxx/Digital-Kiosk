@@ -1,0 +1,10 @@
+^C:\USERS\VAVA\DOWNLOADS\CREATE PROJECT WITHOUT EXAMPLES\BUILD\CMAKEFILES\94046237461A113C4876CAFD271D5E2A\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/Vava/Downloads/Create project without examples/kiosk-agent-cpp" "-BC:/Users/Vava/Downloads/Create project without examples/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/Vava/Downloads/Create project without examples/build/kiosk_agent.slnx"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

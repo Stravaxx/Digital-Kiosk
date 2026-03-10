@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Vava\Downloads\Create project without examples\kiosk-agent-cpp\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Vava\Downloads\Create project without examples\kiosk-agent-cpp\src\AgentApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Vava\Downloads\Create project without examples\kiosk-agent-cpp\src\platform\linux\LinuxServiceStub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Vava\Downloads\Create project without examples\kiosk-agent-cpp\src\platform\windows\WindowsServiceStub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Vava\Downloads\Create project without examples\kiosk-agent-cpp\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{D5C6719A-AE37-33BA-9701-3AE9C5A6C961}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

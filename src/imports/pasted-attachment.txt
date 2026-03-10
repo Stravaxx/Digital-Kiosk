@@ -1,0 +1,437 @@
+Continue improving the existing project so it becomes a **fully professional digital signage platform designed specifically for Raspberry Pi**, comparable to systems like Xibo and Screenly.
+
+Do not redesign from scratch. Extend and improve the current architecture and keep the existing stack.
+
+TECH STACK (unchanged)
+
+Backend
+Node.js + TypeScript
+Express API
+WebSocket server
+JSON database
+Filesystem storage
+
+Frontend Admin
+React + TypeScript
+Vite or Next.js
+
+Player
+Lightweight HTML/JS player optimized for Raspberry Pi kiosk mode.
+
+Theme
+Dark Glassmorphism professional UI.
+
+PRIMARY GOAL
+
+The platform must be production-grade and able to run on multiple Raspberry Pi screens reliably with automatic registration, remote management, meeting room display templates and robust offline support.
+
+---
+
+## RASPBERRY PI PLAYER SYSTEM
+
+The player must be optimized for Raspberry Pi devices.
+
+Expected environment:
+
+Raspberry Pi OS
+Chromium kiosk mode
+Autostart on boot
+
+Player URL example:
+
+http://server/player
+
+PLAYER FEATURES
+
+Automatic device registration
+Device heartbeat monitoring
+Local asset caching
+Offline playback if network lost
+WebSocket live updates
+Low CPU usage
+Hardware video acceleration support
+
+PLAYER BOOT FLOW
+
+1. Raspberry Pi boots
+2. Chromium launches in kiosk mode
+3. Player loads
+4. Player registers device
+
+POST /api/screens/register
+
+Server returns:
+deviceToken
+assignedPlaylist
+layout
+
+5. Player opens WebSocket
+6. Player downloads assets and caches them locally
+7. Player renders layout zones
+
+If connection lost:
+player continues using cached content.
+
+---
+
+## SCREEN PROVISIONING SYSTEM
+
+Screens must not be manually created in the admin.
+
+Raspberry Pi players automatically register.
+
+Admin dashboard must include a **Screen Approval System**.
+
+Screen states:
+
+pending
+approved
+offline
+online
+
+Admin actions:
+
+rename screen
+assign location
+assign playlist
+assign layout override
+reboot command
+refresh command
+
+Each screen stores:
+
+deviceId
+name
+location
+ip
+resolution
+os
+lastHeartbeat
+playlistId
+layoutId
+
+---
+
+## TEMPLATE SYSTEM FOR MEETING ROOMS
+
+Implement a **template engine** dedicated to meeting room displays.
+
+Templates are predefined layout + widgets.
+
+Template types must include:
+
+Meeting Room Today
+Meeting Room Weekly
+Room Status Board
+Room Door Display
+Company Dashboard
+Mixed Media Display
+
+Templates must be customizable in the admin.
+
+Example template: "Meeting Room Today"
+
+Layout zones:
+
+Header
+Current Meeting
+Next Meeting
+Today Schedule
+Side Media
+
+Displayed information:
+
+Room name
+Current meeting title
+Organizer
+Start time
+End time
+Status indicator
+
+Status colors:
+
+green = free
+orange = starting soon
+red = occupied
+
+---
+
+## ROOM MANAGEMENT SYSTEM
+
+Admin dashboard must include a **Rooms section**.
+
+Each room includes:
+
+roomId
+roomName
+location
+calendarSource
+color
+screenId
+
+Rooms can be mapped to calendars.
+
+Calendar sources:
+
+iCal URL
+local JSON
+manual events
+
+---
+
+## CALENDAR ENGINE
+
+The system must fetch calendar data periodically.
+
+Background job:
+
+fetch every 5 minutes
+
+Data stored in:
+
+/storage/cache/calendar
+
+Events must be normalized:
+
+id
+title
+start
+end
+room
+organizer
+
+Calendar widget must support:
+
+today view
+weekly view
+timeline view
+current meeting highlight
+
+---
+
+## ADVANCED PLAYLIST SYSTEM
+
+Playlists must support:
+
+zone targeting
+duration control
+scheduling
+fallback content
+
+Example item:
+
+{
+type: "image",
+zoneId: "sidebar",
+duration: 15,
+src: "/storage/assets/ad1.png"
+}
+
+Supported content types:
+
+image
+video
+HTML widget
+calendar
+RSS feed
+iframe
+text widget
+weather widget
+
+---
+
+## SCHEDULING ENGINE
+
+Add a **content scheduling system**.
+
+Playlist items can include:
+
+startDate
+endDate
+daysOfWeek
+timeRange
+
+Example:
+
+show only weekdays 08:00 → 18:00.
+
+---
+
+## LAYOUT VISUAL EDITOR
+
+Improve the layout editor so it is fully functional.
+
+Admin must be able to:
+
+create layouts
+drag zones
+resize zones
+assign zone type
+preview layout
+save layout JSON
+
+Zone properties:
+
+id
+name
+x
+y
+width
+height
+type
+
+Zone types:
+
+playlist
+calendar
+widget
+media
+iframe
+
+Preview must simulate a real screen.
+
+---
+
+## ASSET MANAGEMENT
+
+Assets supported:
+
+images
+videos
+HTML widgets
+SVG graphics
+
+Admin must be able to:
+
+upload
+preview
+tag
+delete
+replace
+
+Generate thumbnails automatically.
+
+---
+
+## OFFLINE MODE
+
+Raspberry Pi players must cache:
+
+images
+videos
+layout JSON
+playlist JSON
+
+Cache stored in:
+
+/player/cache
+
+If server unreachable:
+
+player continues playback.
+
+---
+
+## MONITORING SYSTEM
+
+Admin dashboard must display:
+
+screen status
+last heartbeat
+current content
+device IP
+device resolution
+CPU usage if available
+
+Screens list must show:
+
+online indicator
+location
+assigned playlist
+assigned template
+
+---
+
+## ADMIN DASHBOARD SECTIONS
+
+Overview
+Screens
+Rooms
+Calendars
+Layouts
+Templates
+Playlists
+Assets
+Logs
+Settings
+
+Overview must show:
+
+online screens
+offline screens
+active meetings
+upcoming meetings
+
+---
+
+## SECURITY
+
+Add authentication:
+
+admin login
+JWT tokens
+API protection
+
+Player uses deviceToken authentication.
+
+---
+
+## PROJECT STRUCTURE
+
+/server
+/api
+/services
+/calendar
+/screens
+/playlists
+/layouts
+/templates
+
+/client-admin
+/pages
+/components
+/hooks
+
+/player
+/renderer
+/cache
+/ws
+/layout-engine
+
+/shared
+/types
+
+---
+
+## USER INTERFACE STYLE
+
+Professional dark glassmorphism.
+
+Background: dark gradient.
+
+Cards:
+semi transparent
+blurred glass effect
+soft shadows.
+
+Use modern dashboard UI patterns.
+
+---
+
+IMPORTANT
+
+All systems must be implemented as **real working code**, not placeholders.
+
+The layout engine, template system, Raspberry Pi player, calendar engine and playlist system must all work together and be fully functional.
+
+The final result must behave like a professional signage platform used to manage meeting room displays across multiple Raspberry Pi devices.
