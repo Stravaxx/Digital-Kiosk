@@ -2,8 +2,6 @@
 
 Projet Digital Signage (panel admin + player).
 
-Lien maquette: <https://www.figma.com/design/p9CwwJ4OcwwTsOwU10NWMY/Create-project-without-examples>
-
 ## Running the code
 
 Installez les dépendances:
