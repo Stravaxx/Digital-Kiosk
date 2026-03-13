@@ -149,3 +149,7 @@ database/
 dist/
 .build/
 storage/
+database/
+build/
+docs-api/
+dist/

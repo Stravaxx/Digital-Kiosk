@@ -1,3 +1,0 @@
-C:/Users/Vava/Downloads/Create project without examples/build/CMakeFiles/kiosk-agent.dir
-C:/Users/Vava/Downloads/Create project without examples/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/Vava/Downloads/Create project without examples/build/CMakeFiles/ZERO_CHECK.dir
