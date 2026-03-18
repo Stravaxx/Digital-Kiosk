@@ -218,7 +218,7 @@ Body (extrait):
     "temperatureC": 0,
     "diskUsedPercent": 57,
     "heartbeatLatencyMs": 152,
-    "version": "1.0.0"
+    "version": "1.1.0"
   }
 }
 ```

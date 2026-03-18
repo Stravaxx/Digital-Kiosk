@@ -44,6 +44,7 @@ coverage/
 .stylelintcache
 .node_repl_history
 *.tgz
+RELEASE_NOTES.md
 .yarn-integrity
 .svelte-kit/
 

@@ -89,6 +89,7 @@ const updateState = {
   latestPublishedAt: null,
   releaseUrl: null,
   releaseName: null,
+  releaseBody: null,
   updateAvailable: false,
   checkedAt: null,
   checkError: null,
@@ -192,7 +193,8 @@ async function fetchLatestReleaseInfo() {
     version: String(tag).replace(/^v/i, ''),
     publishedAt: typeof payload?.published_at === 'string' ? payload.published_at : null,
     htmlUrl: typeof payload?.html_url === 'string' ? payload.html_url : null,
-    name: typeof payload?.name === 'string' ? payload.name : null
+    name: typeof payload?.name === 'string' ? payload.name : null,
+    body: typeof payload?.body === 'string' ? payload.body : null
   };
 }
 
@@ -213,6 +215,7 @@ async function checkForReleaseUpdate({ force = false } = {}) {
       updateState.latestPublishedAt = null;
       updateState.releaseUrl = null;
       updateState.releaseName = null;
+      updateState.releaseBody = null;
       updateState.updateAvailable = false;
       updateState.checkedAt = new Date().toISOString();
       updateState.checkError = 'Aucune release GitHub trouvée (404).';
@@ -230,6 +233,7 @@ async function checkForReleaseUpdate({ force = false } = {}) {
     updateState.latestPublishedAt = release.publishedAt;
     updateState.releaseUrl = release.htmlUrl;
     updateState.releaseName = release.name;
+    updateState.releaseBody = release.body;
     updateState.updateAvailable = updateAvailable;
     updateState.checkedAt = new Date().toISOString();
 

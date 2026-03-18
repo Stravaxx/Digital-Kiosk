@@ -37,7 +37,11 @@ jobs:
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG="${{ github.event.inputs.release_tag }}"
           else
-            TAG="${GITHUB_REF_NAME}"
+            if [ -n "${GITHUB_REF_NAME}" ]; then
+              TAG="${GITHUB_REF_NAME}"
+            else
+              TAG="v$(node -p \"require('./package.json').version\")"
+            fi
           fi
 
           if [ -z "$TAG" ]; then
@@ -66,21 +70,20 @@ jobs:
       - name: Build Vite application
         run: npm run build
 
-      - name: Compute previous tag
-        id: prev
+      - name: Validate package version
         shell: bash
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ steps.vars.outputs.tag }}$" | head -n 1 || true)
-          echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Generate CHANGELOG.md
-        shell: bash
-        run: |
-          if [ -n "${{ steps.prev.outputs.previous_tag }}" ]; then
-            node scripts/generate-changelog.cjs --from "${{ steps.prev.outputs.previous_tag }}" --to "${{ steps.vars.outputs.tag }}" --output CHANGELOG.md
-          else
-            node scripts/generate-changelog.cjs --to "${{ steps.vars.outputs.tag }}" --output CHANGELOG.md
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_TAG="v${PACKAGE_VERSION}"
+          if [ "${EXPECTED_TAG}" != "${{ steps.vars.outputs.tag }}" ]; then
+            echo "La version package.json (${PACKAGE_VERSION}) ne correspond pas au tag ${{ steps.vars.outputs.tag }}."
+            exit 1
           fi
+
+      - name: Extract release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          node scripts/extract-release-notes.cjs --input CHANGELOG.md --output RELEASE_NOTES.md --version "${{ steps.vars.outputs.tag }}"
 
       - name: Prepare runtime package
         shell: bash
@@ -94,6 +97,7 @@ jobs:
           cp scripts/security/adminAuthUtils.cjs release/scripts/security/adminAuthUtils.cjs
           cp -r node_modules release/node_modules
           cp CHANGELOG.md release/CHANGELOG.md
+          cp RELEASE_NOTES.md release/RELEASE_NOTES.md
 
       - name: Archive release bundle
         shell: bash
@@ -105,7 +109,8 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Digital Kiosk ${{ steps.vars.outputs.tag }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
           files: |
             digital-kiosk-${{ steps.vars.outputs.tag }}.tar.gz
             CHANGELOG.md
+            RELEASE_NOTES.md

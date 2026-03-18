@@ -1,7 +1,7 @@
 {
   "name": "digital-signage",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "dev": "concurrently \"npm run api\" \"vite --config src-vite/vite.config.ts\"",
     "dev:ip": "concurrently \"npm run api\" \"vite --config src-vite/vite.config.ts --host 0.0.0.0\"",

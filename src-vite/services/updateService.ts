@@ -6,6 +6,7 @@ export interface UpdateStatus {
   latestPublishedAt: string | null;
   releaseUrl: string | null;
   releaseName: string | null;
+  releaseBody: string | null;
   updateAvailable: boolean;
   checkedAt: string | null;
   checkError: string | null;
@@ -42,6 +43,7 @@ async function parseUpdateResponse(response: Response): Promise<UpdateStatus> {
     latestPublishedAt: typeof payload?.latestPublishedAt === 'string' ? payload.latestPublishedAt : null,
     releaseUrl: typeof payload?.releaseUrl === 'string' ? payload.releaseUrl : null,
     releaseName: typeof payload?.releaseName === 'string' ? payload.releaseName : null,
+    releaseBody: typeof payload?.releaseBody === 'string' ? payload.releaseBody : null,
     updateAvailable: Boolean(payload?.updateAvailable),
     checkedAt: typeof payload?.checkedAt === 'string' ? payload.checkedAt : null,
     checkError: typeof payload?.checkError === 'string' ? payload.checkError : null,

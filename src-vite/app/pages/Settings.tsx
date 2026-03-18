@@ -502,6 +502,13 @@ export function Settings() {
           </a>
         ) : null}
 
+        {updateStatus?.releaseBody ? (
+          <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+            <p className="text-sm text-[#e5e7eb] mb-2">Notes de release</p>
+            <pre className="whitespace-pre-wrap text-xs text-[#cbd5e1] font-sans">{updateStatus.releaseBody}</pre>
+          </div>
+        ) : null}
+
         <div className="flex items-center justify-between gap-3 p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
           <div className="text-sm">
             <p className="text-[#e5e7eb]">Notifications de mise à jour</p>
