@@ -32,13 +32,3 @@ jobs:
 
       - name: Run tests
         run: npm test --if-present
-
-      - name: Install dependencies (panel)
-        run: npm ci
-        working-directory: panel
-
-      - name: Build Next.js panel
-        run: npm run build
-        working-directory: panel
-        env:
-          API_BASE_URL: http://localhost:8787

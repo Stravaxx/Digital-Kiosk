@@ -66,16 +66,6 @@ jobs:
       - name: Build Vite application
         run: npm run build
 
-      - name: Install panel dependencies
-        run: npm ci
-        working-directory: panel
-
-      - name: Build Next.js panel
-        run: npm run build
-        working-directory: panel
-        env:
-          API_BASE_URL: http://localhost:8787
-
       - name: Compute previous tag
         id: prev
         shell: bash
@@ -97,17 +87,12 @@ jobs:
         run: |
           npm prune --omit=dev
           mkdir -p release/scripts/security
-          mkdir -p release/panel
           cp -r dist release/dist
           cp server.cjs release/server.cjs
           cp package.json release/package.json
           if [ -f package-lock.json ]; then cp package-lock.json release/package-lock.json; fi
           cp scripts/security/adminAuthUtils.cjs release/scripts/security/adminAuthUtils.cjs
           cp -r node_modules release/node_modules
-          # Bundle Next.js panel (standalone output)
-          cp -r panel/.next/standalone release/panel/standalone
-          cp -r panel/.next/static release/panel/.next/static
-          cp -r panel/public release/panel/public 2>/dev/null || true
           cp CHANGELOG.md release/CHANGELOG.md
 
       - name: Archive release bundle
