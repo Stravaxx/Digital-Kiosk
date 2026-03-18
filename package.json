@@ -28,6 +28,7 @@
     "agent:cpp:configure": "cmake -S kiosk-agent-cpp -B kiosk-agent-cpp/build",
     "agent:cpp:build": "cmake --build kiosk-agent-cpp/build --config Release",
     "agent:cpp:run": "kiosk-agent-cpp/build/kiosk-agent kiosk-agent-cpp/config/agent-config.example.json",
+    "changelog:generate": "node scripts/generate-changelog.cjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -103,8 +104,8 @@
     "@types/ical": "^0.8.3",
     "@types/luxon": "^3.7.1",
     "@types/node": "^25.3.3",
-    "@types/supertest": "^6.0.3",
     "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "4.7.0",
     "supertest": "^7.1.4",
@@ -112,7 +113,7 @@
     "typedoc": "^0.28.13",
     "vite": "6.3.5",
     "vitepress": "^2.0.0-alpha.12",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "react": "18.3.1",

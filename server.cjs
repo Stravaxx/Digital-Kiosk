@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const crypto = require('crypto');
+const { execFile } = require('child_process');
 const { WebSocketServer } = require('ws');
 let BetterSqlite3 = null;
 try {
@@ -55,6 +56,9 @@ const STORAGE_POLICY_KV_KEY = 'ds.storage.policy';
 const ALERTS_POLICY_KV_KEY = 'ds.alerts.policy';
 const ALERTS_STATE_KV_KEY = 'ds.alerts.state';
 const DB_SCHEMA_VERSION = 2;
+const UPDATE_RELEASE_REPO = 'Stravaxx/Digital-Kiosk';
+const UPDATE_RELEASE_API = `https://api.github.com/repos/${UPDATE_RELEASE_REPO}/releases/latest`;
+const RELEASE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const COMMAND_SIGNATURE_SECRET = String(process.env.COMMAND_SIGNATURE_SECRET || 'ds-default-command-secret');
 const DEFAULT_STORAGE_POLICY = {
   maxAssetBytes: 6 * 1024 * 1024 * 1024,
@@ -75,6 +79,25 @@ const ADMIN_IDLE_TIMEOUT_MINUTES = Number(process.env.ADMIN_IDLE_TIMEOUT_MINUTES
 const ADMIN_IDLE_TIMEOUT_MS = Math.min(20 * 60 * 1000, Math.max(15 * 60 * 1000, ADMIN_IDLE_TIMEOUT_MINUTES * 60 * 1000));
 const ADMIN_TOKEN_COOKIE_NAME = 'ds_admin_token';
 const adminSessions = new Map();
+const updateState = {
+  repo: UPDATE_RELEASE_REPO,
+  currentVersion: '0.0.0',
+  latestVersion: null,
+  latestTag: null,
+  latestPublishedAt: null,
+  releaseUrl: null,
+  releaseName: null,
+  updateAvailable: false,
+  checkedAt: null,
+  checkError: null,
+  checking: false,
+  updating: false,
+  updateError: null,
+  updatedAt: null,
+  appliedTag: null,
+  requiresRestart: false
+};
+let releaseCheckTimer = null;
 const DEFAULT_EMPTY_ARRAY_KEYS = new Set([
   SCREENS_KV_KEY,
   LAYOUTS_KV_KEY,
@@ -86,6 +109,183 @@ const DEFAULT_EMPTY_ARRAY_KEYS = new Set([
   PLAYLISTS_KV_KEY,
   LOGS_KV_KEY
 ]);
+
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, {
+      cwd: ROOT,
+      maxBuffer: 8 * 1024 * 1024,
+      ...options
+    }, (error, stdout, stderr) => {
+      if (error) {
+        const details = String(stderr || stdout || error.message || '').trim();
+        reject(new Error(details || `${command} failed`));
+        return;
+      }
+      resolve({
+        stdout: String(stdout || ''),
+        stderr: String(stderr || '')
+      });
+    });
+  });
+}
+
+function normalizeVersionLikeTag(tag) {
+  const cleaned = String(tag || '').trim().replace(/^v/i, '');
+  const match = cleaned.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  if (!match) {
+    return { valid: false, major: 0, minor: 0, patch: 0 };
+  }
+  return {
+    valid: true,
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3])
+  };
+}
+
+function compareSemverLike(a, b) {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
+}
+
+async function readAppVersionFromPackageJson() {
+  try {
+    const packagePath = path.join(ROOT, 'package.json');
+    const raw = await fsp.readFile(packagePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const version = String(parsed?.version || '').trim();
+    return version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+async function fetchLatestReleaseInfo() {
+  const response = await fetch(UPDATE_RELEASE_API, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'digital-kiosk-update-checker'
+    },
+    cache: 'no-store'
+  });
+
+  if (!response.ok) {
+    throw new Error(`github release check failed (${response.status})`);
+  }
+
+  const payload = await response.json();
+  const tag = String(payload?.tag_name || '').trim();
+  if (!tag) {
+    throw new Error('latest release tag missing');
+  }
+
+  return {
+    tag,
+    version: String(tag).replace(/^v/i, ''),
+    publishedAt: typeof payload?.published_at === 'string' ? payload.published_at : null,
+    htmlUrl: typeof payload?.html_url === 'string' ? payload.html_url : null,
+    name: typeof payload?.name === 'string' ? payload.name : null
+  };
+}
+
+async function checkForReleaseUpdate({ force = false } = {}) {
+  if (updateState.checking && !force) {
+    return updateState;
+  }
+
+  updateState.checking = true;
+  updateState.checkError = null;
+
+  try {
+    updateState.currentVersion = await readAppVersionFromPackageJson();
+    const release = await fetchLatestReleaseInfo();
+    const current = normalizeVersionLikeTag(updateState.currentVersion);
+    const latest = normalizeVersionLikeTag(release.version);
+    const hasComparableVersions = current.valid && latest.valid;
+    const updateAvailable = hasComparableVersions
+      ? compareSemverLike(latest, current) > 0
+      : release.tag !== `v${updateState.currentVersion}` && release.version !== updateState.currentVersion;
+
+    updateState.latestVersion = release.version;
+    updateState.latestTag = release.tag;
+    updateState.latestPublishedAt = release.publishedAt;
+    updateState.releaseUrl = release.htmlUrl;
+    updateState.releaseName = release.name;
+    updateState.updateAvailable = updateAvailable;
+    updateState.checkedAt = new Date().toISOString();
+
+    return updateState;
+  } catch (error) {
+    updateState.checkedAt = new Date().toISOString();
+    updateState.checkError = String(error?.message || error || 'release check failed');
+    return updateState;
+  } finally {
+    updateState.checking = false;
+  }
+}
+
+async function applyReleaseUpdate(req) {
+  if (updateState.updating) {
+    throw new Error('Une mise à jour est déjà en cours.');
+  }
+
+  updateState.updating = true;
+  updateState.updateError = null;
+
+  try {
+    const status = await checkForReleaseUpdate({ force: true });
+    if (!status.updateAvailable || !status.latestTag) {
+      throw new Error('Aucune nouvelle release à appliquer.');
+    }
+
+    await runCommand('git', ['rev-parse', '--is-inside-work-tree']);
+    const gitStatus = await runCommand('git', ['status', '--porcelain']);
+    if (gitStatus.stdout.trim()) {
+      throw new Error('Le dépôt contient des modifications locales. Commit/stash requis avant mise à jour.');
+    }
+
+    await runCommand('git', ['fetch', '--tags', 'origin']);
+    await runCommand('git', ['checkout', `tags/${status.latestTag}`]);
+    await runCommand('npm', ['install', '--no-audit', '--no-fund']);
+    await runCommand('npm', ['run', 'build']);
+
+    updateState.currentVersion = await readAppVersionFromPackageJson();
+    updateState.updatedAt = new Date().toISOString();
+    updateState.appliedTag = status.latestTag;
+    updateState.updateAvailable = false;
+    updateState.requiresRestart = true;
+
+    const db = await readDb();
+    appendLogEntry(db, {
+      type: 'system',
+      level: 'warning',
+      source: 'api.system.update.apply',
+      message: `Mise à jour appliquée vers ${status.latestTag}`,
+      details: buildLogMeta(req, {
+        repo: UPDATE_RELEASE_REPO,
+        appliedTag: status.latestTag
+      })
+    });
+    await writeDb(db);
+
+    return updateState;
+  } catch (error) {
+    updateState.updateError = String(error?.message || error || 'update failed');
+    throw error;
+  } finally {
+    updateState.updating = false;
+  }
+}
+
+function startReleaseWatcher() {
+  if (releaseCheckTimer) return;
+  void checkForReleaseUpdate({ force: true });
+  releaseCheckTimer = setInterval(() => {
+    void checkForReleaseUpdate({ force: true });
+  }, RELEASE_CHECK_INTERVAL_MS);
+}
 
 const KV_TO_COLLECTION_NAME = {
   [SCREENS_KV_KEY]: 'screens',
@@ -2487,6 +2687,29 @@ app.get('/api/system/kv/:key', async (req, res) => {
   return res.json({ key, value });
 });
 
+app.get('/api/system/update/status', async (_req, res) => {
+  const status = await checkForReleaseUpdate();
+  return res.json({ ok: true, ...status });
+});
+
+app.post('/api/system/update/check', async (_req, res) => {
+  const status = await checkForReleaseUpdate({ force: true });
+  return res.json({ ok: true, ...status });
+});
+
+app.post('/api/system/update/apply', async (req, res) => {
+  try {
+    const status = await applyReleaseUpdate(req);
+    return res.json({ ok: true, ...status });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: String(error?.message || error || 'Impossible d’appliquer la mise à jour.'),
+      ...updateState
+    });
+  }
+});
+
 app.put('/api/system/kv/:key', async (req, res) => {
   const key = req.params.key;
   const value = req.body?.value;
@@ -3264,6 +3487,7 @@ if (!API_ONLY && fs.existsSync(DIST_DIR)) {
 
 async function startServer() {
   await readDb();
+  startReleaseWatcher();
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
     console.log(`System DB: ${DB_PATH}`);

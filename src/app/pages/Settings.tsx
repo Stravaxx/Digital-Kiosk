@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon, Save } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Settings as SettingsIcon, Save, BellRing, RefreshCw, Download } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { GlassButton } from '../components/GlassButton';
 import { getCurrentAdminSession } from '../../services/adminAuthService';
@@ -9,6 +9,14 @@ import {
   syncSystemSettingsFromDb,
   type SystemSettings
 } from '../../services/systemSettingsService';
+import {
+  applyUpdate,
+  checkForUpdates,
+  getUpdateStatus,
+  type UpdateStatus
+} from '../../services/updateService';
+
+const UPDATE_LAST_NOTIFIED_TAG_KEY = 'ds.updates.last-notified-tag';
 
 interface AdminUserView {
   username: string;
@@ -29,6 +37,16 @@ export function Settings() {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'operator' | 'viewer'>('viewer');
   const [userActionBusy, setUserActionBusy] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [updatesLoading, setUpdatesLoading] = useState(true);
+  const [updatesBusy, setUpdatesBusy] = useState<'check' | 'apply' | ''>('');
+  const [updatesError, setUpdatesError] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    typeof Notification !== 'undefined' && Notification.permission === 'granted'
+  );
+  const lastNotifiedTagRef = useRef<string>(
+    String(localStorage.getItem(UPDATE_LAST_NOTIFIED_TAG_KEY) || '').trim()
+  );
 
   useEffect(() => {
     void syncSystemSettingsFromDb().then(setSettings).catch(() => setSettings(DEFAULT_SYSTEM_SETTINGS));
@@ -68,6 +86,85 @@ export function Settings() {
 
     void loadUsers();
   }, [isAdmin]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const maybeNotifyRelease = (status: UpdateStatus) => {
+      if (!status.updateAvailable || !status.latestTag) return;
+      if (lastNotifiedTagRef.current === status.latestTag) return;
+
+      lastNotifiedTagRef.current = status.latestTag;
+      localStorage.setItem(UPDATE_LAST_NOTIFIED_TAG_KEY, status.latestTag);
+
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        void new Notification('Mise à jour disponible', {
+          body: `${status.latestTag} est disponible sur ${status.repo}.`
+        });
+      }
+    };
+
+    const loadUpdateStatus = async (forceCheck = false) => {
+      try {
+        const nextStatus = forceCheck ? await checkForUpdates() : await getUpdateStatus();
+        if (!mounted) return;
+        setUpdateStatus(nextStatus);
+        setUpdatesError('');
+        maybeNotifyRelease(nextStatus);
+      } catch (error) {
+        if (!mounted) return;
+        setUpdatesError(String((error as Error)?.message || 'Impossible de vérifier les mises à jour.'));
+      } finally {
+        if (mounted) setUpdatesLoading(false);
+      }
+    };
+
+    void loadUpdateStatus();
+    const timer = window.setInterval(() => {
+      void loadUpdateStatus();
+    }, 60_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    const permission = await Notification.requestPermission();
+    setNotificationsEnabled(permission === 'granted');
+  };
+
+  const runManualUpdateCheck = async () => {
+    setUpdatesBusy('check');
+    setUpdatesError('');
+    try {
+      const next = await checkForUpdates();
+      setUpdateStatus(next);
+    } catch (error) {
+      setUpdatesError(String((error as Error)?.message || 'Vérification impossible.'));
+    } finally {
+      setUpdatesBusy('');
+    }
+  };
+
+  const runApplyUpdate = async () => {
+    if (!window.confirm('Appliquer la mise à jour release maintenant ? Le dépôt local sera mis à jour.')) {
+      return;
+    }
+
+    setUpdatesBusy('apply');
+    setUpdatesError('');
+    try {
+      const next = await applyUpdate();
+      setUpdateStatus(next);
+    } catch (error) {
+      setUpdatesError(String((error as Error)?.message || 'Application de la mise à jour impossible.'));
+    } finally {
+      setUpdatesBusy('');
+    }
+  };
 
   const saveChanges = () => {
     saveSystemSettings(settings);
@@ -318,6 +415,96 @@ export function Settings() {
             />
           </div>
         </div>
+      </GlassCard>
+
+      <GlassCard className="p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg text-[#e5e7eb] mb-1">Mises à jour</h2>
+            <p className="text-sm text-[#9ca3af]">Source release: {updateStatus?.repo || 'Stravaxx/Digital-Kiosk'}.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <GlassButton type="button" onClick={runManualUpdateCheck} disabled={updatesBusy !== ''}>
+              <RefreshCw size={16} className="inline mr-2" />
+              {updatesBusy === 'check' ? 'Vérification...' : 'Vérifier'}
+            </GlassButton>
+            <GlassButton
+              type="button"
+              onClick={runApplyUpdate}
+              disabled={updatesBusy !== '' || !updateStatus?.updateAvailable}
+            >
+              <Download size={16} className="inline mr-2" />
+              {updatesBusy === 'apply' ? 'Mise à jour...' : 'Mettre à jour'}
+            </GlassButton>
+          </div>
+        </div>
+
+        {updatesLoading ? (
+          <p className="text-sm text-[#9ca3af]">Chargement de l’état des releases...</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+              <p className="text-[#9ca3af]">Version actuelle</p>
+              <p className="text-[#e5e7eb]">{updateStatus?.currentVersion || '—'}</p>
+            </div>
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+              <p className="text-[#9ca3af]">Dernière release</p>
+              <p className="text-[#e5e7eb]">{updateStatus?.latestTag || '—'}</p>
+            </div>
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+              <p className="text-[#9ca3af]">Dernier check</p>
+              <p className="text-[#e5e7eb]">{updateStatus?.checkedAt ? new Date(updateStatus.checkedAt).toLocaleString('fr-FR') : '—'}</p>
+            </div>
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+              <p className="text-[#9ca3af]">État</p>
+              <p className={updateStatus?.updateAvailable ? 'text-[#f59e0b]' : 'text-[#34d399]'}>
+                {updateStatus?.updateAvailable ? 'Nouvelle release disponible' : 'Application à jour'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {updateStatus?.latestPublishedAt ? (
+          <p className="text-xs text-[#9ca3af]">Release publiée le {new Date(updateStatus.latestPublishedAt).toLocaleString('fr-FR')}.</p>
+        ) : null}
+
+        {updateStatus?.releaseUrl ? (
+          <a
+            href={updateStatus.releaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-[#93c5fd] underline"
+          >
+            Voir la release GitHub
+          </a>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-3 p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+          <div className="text-sm">
+            <p className="text-[#e5e7eb]">Notifications de mise à jour</p>
+            <p className="text-[#9ca3af]">Notification locale quand une nouvelle release est publiée.</p>
+          </div>
+          <GlassButton type="button" onClick={requestNotificationPermission}>
+            <BellRing size={16} className="inline mr-2" />
+            {notificationsEnabled ? 'Notifications actives' : 'Activer les notifications'}
+          </GlassButton>
+        </div>
+
+        {updateStatus?.updateAvailable ? (
+          <div className="p-3 rounded-[12px] border border-[#f59e0b]/60 bg-[#f59e0b]/10 text-sm text-[#fcd34d]">
+            Nouvelle release détectée ({updateStatus.latestTag}). Cliquez sur “Mettre à jour” pour appliquer la version publiée.
+          </div>
+        ) : null}
+
+        {updateStatus?.requiresRestart ? (
+          <div className="p-3 rounded-[12px] border border-[#3b82f6]/60 bg-[#3b82f6]/10 text-sm text-[#bfdbfe]">
+            Mise à jour appliquée. Redémarrez le service Node pour charger la nouvelle version.
+          </div>
+        ) : null}
+
+        {updatesError ? <p className="text-sm text-[#ef4444]">{updatesError}</p> : null}
+        {updateStatus?.checkError ? <p className="text-sm text-[#ef4444]">{updateStatus.checkError}</p> : null}
+        {updateStatus?.updateError ? <p className="text-sm text-[#ef4444]">{updateStatus.updateError}</p> : null}
       </GlassCard>
 
       {isAdmin ? (

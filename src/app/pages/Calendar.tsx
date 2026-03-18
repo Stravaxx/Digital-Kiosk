@@ -54,6 +54,7 @@ const weekdayLabels = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Dec'];
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+type CalendarSortMode = 'date' | 'az' | 'za' | 'room';
 
 function getOccurrenceSourceId(occurrence: LocalCalendarOccurrence): string {
   return occurrence.sourceEventId || occurrence.recurrenceParentId || occurrence.id;
@@ -96,6 +97,44 @@ function dayKey(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeSearchTerm(value: string): string {
+  return String(value || '').trim().toLocaleLowerCase('fr-FR');
+}
+
+function matchesSearchTerm(occurrence: LocalCalendarOccurrence, query: string): boolean {
+  if (!query) return true;
+
+  const haystack = [
+    occurrence.title,
+    occurrence.description,
+    occurrence.roomNumber,
+    ...(Array.isArray(occurrence.facilitators) ? occurrence.facilitators : [])
+  ]
+    .map((value) => String(value || '').toLocaleLowerCase('fr-FR'))
+    .join(' ');
+
+  return haystack.includes(query);
+}
+
+function sortOccurrences(list: LocalCalendarOccurrence[], mode: CalendarSortMode): LocalCalendarOccurrence[] {
+  const next = [...list];
+  if (mode === 'az') {
+    return next.sort((a, b) => a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' }));
+  }
+  if (mode === 'za') {
+    return next.sort((a, b) => b.title.localeCompare(a.title, 'fr', { sensitivity: 'base' }));
+  }
+  if (mode === 'room') {
+    return next.sort((a, b) => {
+      const byRoom = a.roomNumber.localeCompare(b.roomNumber, 'fr', { sensitivity: 'base' });
+      if (byRoom !== 0) return byRoom;
+      return a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' });
+    });
+  }
+
+  return next.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
 }
 
 function recurrenceDaysToFlags(days: number[]): boolean[] {
@@ -192,6 +231,9 @@ export function Calendar() {
   const [applyScope, setApplyScope] = useState<'series' | 'single'>('series');
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [formError, setFormError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortMode, setSortMode] = useState<CalendarSortMode>('date');
+  const [dateSliderValue, setDateSliderValue] = useState(0);
 
   useEffect(() => {
     setRooms(loadRooms());
@@ -317,6 +359,45 @@ export function Calendar() {
     () => keepSingleOccurrencePerSeries(timeline, now, 'past'),
     [timeline, now]
   );
+  const normalizedSearch = useMemo(() => normalizeSearchTerm(searchTerm), [searchTerm]);
+  const timelineBounds = useMemo(() => {
+    if (timeline.length === 0) return null;
+    const values = timeline
+      .map((item) => new Date(item.startAt).getTime())
+      .filter((value) => Number.isFinite(value));
+    if (values.length === 0) return null;
+    return {
+      min: Math.min(...values),
+      max: Math.max(...values)
+    };
+  }, [timeline]);
+
+  const selectedDateMs = useMemo(() => {
+    if (!timelineBounds) return null;
+    const range = timelineBounds.max - timelineBounds.min;
+    if (range <= 0) return timelineBounds.min;
+    return timelineBounds.min + (range * dateSliderValue) / 100;
+  }, [timelineBounds, dateSliderValue]);
+
+  const filteredUpcomingEvents = useMemo(() => {
+    let list = upcomingEvents.filter((event) => matchesSearchTerm(event, normalizedSearch));
+
+    if (sortMode === 'date' && selectedDateMs !== null) {
+      list = list.filter((event) => new Date(event.startAt).getTime() >= selectedDateMs);
+    }
+
+    return sortOccurrences(list, sortMode);
+  }, [upcomingEvents, normalizedSearch, sortMode, selectedDateMs]);
+
+  const filteredPastEvents = useMemo(() => {
+    let list = pastEvents.filter((event) => matchesSearchTerm(event, normalizedSearch));
+
+    if (sortMode === 'date' && selectedDateMs !== null) {
+      list = list.filter((event) => new Date(event.startAt).getTime() <= selectedDateMs);
+    }
+
+    return sortOccurrences(list, sortMode);
+  }, [pastEvents, normalizedSearch, sortMode, selectedDateMs]);
 
   const saveEvent = () => {
     setFormError('');
@@ -515,6 +596,57 @@ export function Calendar() {
         </GlassCard>
       )}
 
+      <GlassCard className="p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="calendar-search" className="block text-[#e5e7eb] mb-2">Recherche événement (mots-clés)</label>
+            <input
+              id="calendar-search"
+              type="text"
+              placeholder="Titre, description, salle, animateur..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="w-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[16px] px-4 py-2 text-[#e5e7eb]"
+            />
+          </div>
+          <div>
+            <label htmlFor="calendar-sort" className="block text-[#e5e7eb] mb-2">Tri</label>
+            <select
+              id="calendar-sort"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as CalendarSortMode)}
+              className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb]"
+            >
+              <option className="bg-[#111827] text-[#e5e7eb]" value="date">Date</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="az">Ordre alphabétique A-Z</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="za">Ordre alphabétique Z-A</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="room">Tri par salle</option>
+            </select>
+          </div>
+        </div>
+
+        {sortMode === 'date' && timelineBounds && selectedDateMs !== null ? (
+          <div>
+            <label htmlFor="calendar-date-slider" className="block text-[#e5e7eb] mb-2">
+              Date pivot: {new Date(selectedDateMs).toLocaleString('fr-FR')}
+            </label>
+            <input
+              id="calendar-date-slider"
+              type="range"
+              min={0}
+              max={100}
+              value={dateSliderValue}
+              onChange={(event) => setDateSliderValue(Number(event.target.value) || 0)}
+              className="w-full"
+            />
+            <div className="flex items-center justify-between text-xs text-[#9ca3af] mt-1">
+              <span>{new Date(timelineBounds.min).toLocaleDateString('fr-FR')}</span>
+              <span>{new Date(timelineBounds.max).toLocaleDateString('fr-FR')}</span>
+            </div>
+          </div>
+        ) : null}
+      </GlassCard>
+
       {timeline.length === 0 ? (
         <GlassCard className="p-6">
           <div className="text-center py-20">
@@ -525,8 +657,8 @@ export function Calendar() {
         </GlassCard>
       ) : (
         <div className="space-y-4">
-          <h2 className="text-lg text-[#e5e7eb]">À venir ({upcomingEvents.length})</h2>
-          {upcomingEvents.map((event) => (
+          <h2 className="text-lg text-[#e5e7eb]">À venir ({filteredUpcomingEvents.length})</h2>
+          {filteredUpcomingEvents.map((event) => (
             <GlassCard key={event.id} className="p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
@@ -591,11 +723,11 @@ export function Calendar() {
             </GlassCard>
           ))}
 
-          <h2 className="text-lg text-[#e5e7eb] pt-2">Passé ({pastEvents.length})</h2>
-          {pastEvents.length === 0 ? (
+          <h2 className="text-lg text-[#e5e7eb] pt-2">Passé ({filteredPastEvents.length})</h2>
+          {filteredPastEvents.length === 0 ? (
             <GlassCard className="p-5 text-[#9ca3af]">Aucun événement passé dans les 30 derniers jours.</GlassCard>
           ) : (
-            pastEvents.map((event) => (
+            filteredPastEvents.map((event) => (
               <GlassCard key={event.id} className="p-5 opacity-80">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2">

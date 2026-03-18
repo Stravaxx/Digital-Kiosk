@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag de release (ex: v1.2.3). Si vide, utilise le tag courant."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Resolve release tag
+        id: vars
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "Aucun tag de release trouvé."
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag on manual run (if missing)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Le tag $TAG existe déjà."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Compute previous tag
+        id: prev
+        shell: bash
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${{ steps.vars.outputs.tag }}$" | head -n 1 || true)
+          echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate CHANGELOG.md
+        shell: bash
+        run: |
+          if [ -n "${{ steps.prev.outputs.previous_tag }}" ]; then
+            node scripts/generate-changelog.cjs --from "${{ steps.prev.outputs.previous_tag }}" --to "${{ steps.vars.outputs.tag }}" --output CHANGELOG.md
+          else
+            node scripts/generate-changelog.cjs --to "${{ steps.vars.outputs.tag }}" --output CHANGELOG.md
+          fi
+
+      - name: Prepare runtime package
+        shell: bash
+        run: |
+          npm prune --omit=dev
+          mkdir -p release/scripts/security
+          cp -r dist release/dist
+          cp server.cjs release/server.cjs
+          cp package.json release/package.json
+          if [ -f package-lock.json ]; then cp package-lock.json release/package-lock.json; fi
+          cp scripts/security/adminAuthUtils.cjs release/scripts/security/adminAuthUtils.cjs
+          cp -r node_modules release/node_modules
+          cp CHANGELOG.md release/CHANGELOG.md
+
+      - name: Archive release bundle
+        shell: bash
+        run: |
+          tar -czf "digital-kiosk-${{ steps.vars.outputs.tag }}.tar.gz" -C release .
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Digital Kiosk ${{ steps.vars.outputs.tag }}
+          body_path: CHANGELOG.md
+          files: |
+            digital-kiosk-${{ steps.vars.outputs.tag }}.tar.gz
+            CHANGELOG.md

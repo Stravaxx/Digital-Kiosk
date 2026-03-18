@@ -16,6 +16,9 @@
 - [x] `src/services/calendarEngine.ts` - fusion `internal` dans agrégation événements
 - [x] `src/services/templateService.ts` - assignation template ↔ salle
 - [x] `src/app/pages/Dashboard.tsx` - correction overlay About (blocage panel)
+- [x] `server.cjs` + `src/services/updateService.ts` + `src/app/pages/Settings.tsx` - système de MaJ basé releases GitHub (`Stravaxx/Digital-Kiosk`) avec notifications et action de mise à jour
+- [x] `src/app/pages/Calendar.tsx` - filtres calendrier (date via barre glissante, ordre alphabétique A-Z/Z-A, tri par salle)
+- [x] `src/app/pages/Calendar.tsx` - recherche d’événements par mots-clés
 
 ---
 
@@ -186,10 +189,15 @@
 
 ## 7) DevOps / Delivery
 
-- [ ] Pipelines build panel/player/backend + agent C++
+- [x] Pipelines build panel/player/backend + agent C++
 - [ ] Artifacts signés (Node bundle + C++ binaries)
-- [ ] Publication release channels (stable/canary)
+- [x] Publication release channels (stable/canary)
 - [ ] Playbooks incident + runbooks opérationnels
+
+### 7.x CI/CD ajoutés (2026-03-18)
+- [x] Workflow GitHub CI (build complet + tests)
+- [x] Workflow GitHub Release (bundle runtime minimal + release automatique)
+- [x] Génération automatique de `CHANGELOG.md` listant commits et fichiers modifiés
 
 ---
 
