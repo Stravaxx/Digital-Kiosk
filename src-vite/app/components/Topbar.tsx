@@ -4,6 +4,7 @@ import { getCurrentAdminSession, logoutAdmin } from '../../services/adminAuthSer
 import { appendSystemLog } from '../../services/logService';
 import { useNavigate } from 'react-router-dom';
 import { getSystemApiBase } from '../../services/systemApiBase';
+import { UpdateStatusBadge } from './UpdateStatusBadge';
 
 interface TopbarProps {
   darkMode?: boolean;
@@ -151,8 +152,8 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-4">
-        
-        
+        <UpdateStatusBadge isOnline={serverOnline} />
+
         {onToggleDarkMode && (
           <button
             onClick={onToggleDarkMode}

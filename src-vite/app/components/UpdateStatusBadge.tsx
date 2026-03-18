@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getSystemApiBase } from '../../services/systemApiBase';
 import { getSystemWsUrl } from '../../services/systemApiBase';
 
 interface UpdateState {
@@ -26,7 +27,7 @@ export function UpdateStatusBadge({ isOnline = true }: UpdateStatusBadgeProps) {
 
     const connectWebSocket = () => {
       try {
-        const wsUrl = getSystemWsUrl('system-sync');
+        const wsUrl = getSystemWsUrl('/ws/system-sync');
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
@@ -61,7 +62,7 @@ export function UpdateStatusBadge({ isOnline = true }: UpdateStatusBadgeProps) {
     };
 
     const pollUpdateStatus = () => {
-      const statusUrl = `/api/system/update/state`;
+      const statusUrl = `${getSystemApiBase()}/api/system/update/state`;
       fetch(statusUrl, { method: 'GET' })
         .then((res) => res.json())
         .then((data) => {
@@ -106,16 +107,37 @@ export function UpdateStatusBadge({ isOnline = true }: UpdateStatusBadgeProps) {
   const step = updateState.steps?.[updateState.currentStep];
   const stepLabel = step?.label || 'Mise à jour...';
   const progress = Math.round(updateState.progress || 0);
+  const progressBucket = Math.max(0, Math.min(20, Math.round(progress / 5)));
+  const progressWidthClass = [
+    'w-0',
+    'w-[5%]',
+    'w-[10%]',
+    'w-[15%]',
+    'w-[20%]',
+    'w-[25%]',
+    'w-[30%]',
+    'w-[35%]',
+    'w-[40%]',
+    'w-[45%]',
+    'w-[50%]',
+    'w-[55%]',
+    'w-[60%]',
+    'w-[65%]',
+    'w-[70%]',
+    'w-[75%]',
+    'w-[80%]',
+    'w-[85%]',
+    'w-[90%]',
+    'w-[95%]',
+    'w-full'
+  ][progressBucket];
 
   return (
     <div className="flex items-center gap-2">
       {/* Inline progress bar */}
       <div className="hidden sm:flex items-center gap-1.5">
         <div className="w-16 h-1.5 rounded-full bg-yellow-900/30 overflow-hidden border border-yellow-600/30">
-          <div
-            className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <div className={`h-full ${progressWidthClass} bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-300`} />
         </div>
         <span className="text-xs text-yellow-300 font-medium whitespace-nowrap">
           {progress}%

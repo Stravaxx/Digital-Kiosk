@@ -2761,7 +2761,24 @@ app.post('/api/system/update/execute', async (req, res) => {
     res.json({ ok: true, message: 'Mise à jour démarrée en arrière-plan', state: updateService.getUpdateState() });
 
     // Run update asynchronously
-    updateService.runUpdate().then((result) => {
+    updateService.runUpdate({
+      onStateChange: () => {
+        if (global.systemWss) {
+          broadcastUpdateStatus(global.systemWss);
+        }
+      },
+      onReloadRequested: async () => {
+        const queuedReload = await queueReloadCommandForAllScreens().catch(() => ({ queuedCount: 0 }));
+        if (global.systemWss) {
+          broadcastUpdateReload(global.systemWss, {
+            scope: 'all',
+            reason: 'system-update-complete',
+            queuedScreens: Number(queuedReload?.queuedCount || 0),
+            at: nowIso()
+          });
+        }
+      }
+    }).then((result) => {
       console.log('Background update completed:', result);
       // Broadcast to WebSocket clients that update is done
       if (global.systemWss) {
@@ -2800,6 +2817,58 @@ function broadcastUpdateStatus(wss) {
       }
     });
   }
+}
+
+function broadcastUpdateReload(wss, payload = {}) {
+  if (wss && wss.clients) {
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        try {
+          client.send(JSON.stringify({
+            type: 'update-reload',
+            payload
+          }));
+        } catch {
+          // ignore send errors
+        }
+      }
+    });
+  }
+}
+
+async function queueReloadCommandForAllScreens() {
+  const db = await readDb();
+  const screens = getCollectionRecords(db, 'screens');
+  if (!Array.isArray(screens) || screens.length === 0) {
+    return { queuedCount: 0, queued: [] };
+  }
+
+  const queued = [];
+  const nextScreens = screens.map((screen) => {
+    const queuedCommand = queueScreenCommand(db, screen, 'reload');
+    queued.push({ screenId: screen.id, deviceId: screen.deviceId || '', command: queuedCommand });
+    return {
+      ...screen,
+      pendingCommand: queuedCommand
+    };
+  });
+
+  setCollectionRecords(db, 'screens', nextScreens);
+  appendLogEntry(db, {
+    type: 'ops',
+    level: 'info',
+    source: 'system.update.reload-all',
+    message: 'Commande groupée post-update: reload',
+    details: {
+      count: queued.length
+    }
+  });
+  await writeDb(db);
+
+  return {
+    queuedCount: queued.length,
+    queued
+  };
 }
 
 app.put('/api/system/kv/:key', async (req, res) => {

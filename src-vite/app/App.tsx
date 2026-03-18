@@ -144,9 +144,19 @@ export default function App() {
 
       socket.onmessage = (event) => {
         try {
-          const payload = JSON.parse(String(event.data || '{}')) as { type?: string; keys?: string[] };
+          const payload = JSON.parse(String(event.data || '{}')) as { type?: string; keys?: string[]; payload?: { reason?: string } };
           if (payload?.type === 'sync') {
             applySystemSync(Array.isArray(payload.keys) ? payload.keys : undefined);
+            return;
+          }
+
+          if (payload?.type === 'update-reload') {
+            const reason = String(payload?.payload?.reason || 'system-update-complete').trim();
+            if (reason === 'system-update-complete') {
+              window.setTimeout(() => {
+                window.location.reload();
+              }, 1200);
+            }
           }
         } catch {
           // ignore malformed message

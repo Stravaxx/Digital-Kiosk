@@ -28,6 +28,8 @@ let updateState = {
   error: null,
   backupPath: null,
   backupDateTime: null,
+  startedAt: null,
+  completedAt: null,
 };
 
 const steps = {
@@ -40,7 +42,72 @@ const steps = {
   RELOAD: { order: 7, label: 'Rechargement du système', weight: 5 },
 };
 
-function setStep(stepName, error = null) {
+function createDefaultState() {
+  return {
+    isRunning: false,
+    currentStep: 'idle',
+    progress: 0,
+    timestamp: null,
+    error: null,
+    backupPath: null,
+    backupDateTime: null,
+    startedAt: null,
+    completedAt: null,
+  };
+}
+
+function copyDirectoryRecursive(sourceDir, destinationDir) {
+  if (!fs.existsSync(sourceDir)) {
+    return;
+  }
+
+  if (!fs.existsSync(destinationDir)) {
+    fs.mkdirSync(destinationDir, { recursive: true });
+  }
+
+  fs.readdirSync(sourceDir, { withFileTypes: true }).forEach((entry) => {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const destinationPath = path.join(destinationDir, entry.name);
+
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(sourcePath, destinationPath);
+      return;
+    }
+
+    fs.copyFileSync(sourcePath, destinationPath);
+  });
+}
+
+function removeDirectoryRecursive(targetDir) {
+  if (!fs.existsSync(targetDir)) {
+    return;
+  }
+
+  fs.readdirSync(targetDir, { withFileTypes: true }).forEach((entry) => {
+    const entryPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      removeDirectoryRecursive(entryPath);
+    } else {
+      fs.unlinkSync(entryPath);
+    }
+  });
+
+  fs.rmdirSync(targetDir);
+}
+
+function emitState(runContext) {
+  const onStateChange = typeof runContext?.onStateChange === 'function' ? runContext.onStateChange : null;
+  if (!onStateChange) {
+    return;
+  }
+  try {
+    onStateChange(getUpdateState());
+  } catch {
+    // noop
+  }
+}
+
+function setStep(stepName, runContext, error = null) {
   const step = steps[stepName];
   if (!step) {
     console.warn(`Unknown step: ${stepName}`);
@@ -57,24 +124,27 @@ function setStep(stepName, error = null) {
   updateState.timestamp = new Date();
 
   console.log(`[UPDATE] ${step.label} - Progress: ${Math.round(updateState.progress)}%`);
+  emitState(runContext);
 }
 
-function completeStep() {
+function completeStep(runContext) {
   const step = steps[updateState.currentStep];
   if (step) {
     const prevProgress = Object.values(steps)
       .filter((s) => s.order < step.order)
       .reduce((sum, s) => sum + s.weight, 0);
     updateState.progress = prevProgress + step.weight;
+    updateState.timestamp = new Date();
+    emitState(runContext);
   }
 }
 
 /**
  * Backup database and storage
  */
-async function backupSystem() {
+async function backupSystem(runContext) {
   try {
-    setStep('BACKUP_DB');
+    setStep('BACKUP_DB', runContext);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupSubdir = path.join(BACKUP_DIR, `update-${timestamp}`);
@@ -89,40 +159,25 @@ async function backupSystem() {
       console.log('✅ Database backed up');
     }
 
-    completeStep();
-    setStep('BACKUP_STORAGE');
+    completeStep(runContext);
+    setStep('BACKUP_STORAGE', runContext);
 
     // Backup storage (if not too large, limit to 100MB)
     if (fs.existsSync(STORAGE_DIR)) {
       const backupStoragePath = path.join(backupSubdir, 'storage');
       fs.mkdirSync(backupStoragePath, { recursive: true });
 
-      // Simple recursive copy (in production, use a proper backup strategy)
-      const copyDirSync = (src, dest) => {
-        if (!fs.existsSync(dest)) {
-          fs.mkdirSync(dest, { recursive: true });
-        }
-        fs.readdirSync(src).forEach((file) => {
-          const srcFile = path.join(src, file);
-          const destFile = path.join(dest, file);
-          if (fs.statSync(srcFile).isDirectory()) {
-            copyDirSync(srcFile, destFile);
-          } else {
-            fs.copyFileSync(srcFile, destFile);
-          }
-        });
-      };
-
-      copyDirSync(STORAGE_DIR, backupStoragePath);
+      copyDirectoryRecursive(STORAGE_DIR, backupStoragePath);
       console.log('✅ Storage backed up');
     }
 
-    completeStep();
+    completeStep(runContext);
     updateState.backupPath = backupSubdir;
     updateState.backupDateTime = new Date();
+    emitState(runContext);
     return backupSubdir;
   } catch (e) {
-    setStep('BACKUP_DB', `Erreur de sauvegarde: ${e.message}`);
+    setStep('BACKUP_DB', runContext, `Erreur de sauvegarde: ${e.message}`);
     throw e;
   }
 }
@@ -130,9 +185,9 @@ async function backupSystem() {
 /**
  * Run npm install
  */
-function npmInstall() {
+function npmInstall(runContext) {
   try {
-    setStep('NPM_INSTALL');
+    setStep('NPM_INSTALL', runContext);
     console.log('Running npm install...');
 
     execSync('npm install', {
@@ -142,9 +197,9 @@ function npmInstall() {
     });
 
     console.log('✅ npm install completed');
-    completeStep();
+    completeStep(runContext);
   } catch (e) {
-    setStep('NPM_INSTALL', `Erreur npm install: ${e.message}`);
+    setStep('NPM_INSTALL', runContext, `Erreur npm install: ${e.message}`);
     throw e;
   }
 }
@@ -152,9 +207,9 @@ function npmInstall() {
 /**
  * Build project (npm run build)
  */
-function buildProject() {
+function buildProject(runContext) {
   try {
-    setStep('BUILD');
+    setStep('BUILD', runContext);
     console.log('Running npm run build...');
 
     execSync('npm run build', {
@@ -164,9 +219,9 @@ function buildProject() {
     });
 
     console.log('✅ Build completed');
-    completeStep();
+    completeStep(runContext);
   } catch (e) {
-    setStep('BUILD', `Erreur de compilation: ${e.message}`);
+    setStep('BUILD', runContext, `Erreur de compilation: ${e.message}`);
     throw e;
   }
 }
@@ -174,9 +229,9 @@ function buildProject() {
 /**
  * Restore from backup
  */
-async function restoreSystem(backupSubdir) {
+async function restoreSystem(backupSubdir, runContext) {
   try {
-    setStep('RESTORE_DB');
+    setStep('RESTORE_DB', runContext);
 
     const backupDbPath = path.join(backupSubdir, 'system.db');
     if (fs.existsSync(backupDbPath) && fs.existsSync(DB_PATH)) {
@@ -184,51 +239,19 @@ async function restoreSystem(backupSubdir) {
       console.log('✅ Database restored');
     }
 
-    completeStep();
-    setStep('RESTORE_STORAGE');
+    completeStep(runContext);
+    setStep('RESTORE_STORAGE', runContext);
 
     const backupStoragePath = path.join(backupSubdir, 'storage');
     if (fs.existsSync(backupStoragePath)) {
-      // Remove old storage and copy backup back
-      const removeDir = (dir) => {
-        if (fs.existsSync(dir)) {
-          fs.readdirSync(dir).forEach((file) => {
-            const filePath = path.join(dir, file);
-            if (fs.statSync(filePath).isDirectory()) {
-              removeDir(filePath);
-            } else {
-              fs.unlinkSync(filePath);
-            }
-          });
-          fs.rmdirSync(dir);
-        }
-      };
-
-      removeDir(STORAGE_DIR);
-
-      // Copy backup storage
-      const copyDirSync = (src, dest) => {
-        if (!fs.existsSync(dest)) {
-          fs.mkdirSync(dest, { recursive: true });
-        }
-        fs.readdirSync(src).forEach((file) => {
-          const srcFile = path.join(src, file);
-          const destFile = path.join(dest, file);
-          if (fs.statSync(srcFile).isDirectory()) {
-            copyDirSync(srcFile, destFile);
-          } else {
-            fs.copyFileSync(srcFile, destFile);
-          }
-        });
-      };
-
-      copyDirSync(backupStoragePath, STORAGE_DIR);
+      removeDirectoryRecursive(STORAGE_DIR);
+      copyDirectoryRecursive(backupStoragePath, STORAGE_DIR);
       console.log('✅ Storage restored');
     }
 
-    completeStep();
+    completeStep(runContext);
   } catch (e) {
-    setStep('RESTORE_DB', `Erreur de restauration: ${e.message}`);
+    setStep('RESTORE_DB', runContext, `Erreur de restauration: ${e.message}`);
     throw e;
   }
 }
@@ -236,16 +259,21 @@ async function restoreSystem(backupSubdir) {
 /**
  * Signal reload to all connected clients
  */
-async function signalReload() {
+async function signalReload(runContext) {
   try {
-    setStep('RELOAD');
-    // In production, this would broadcast via WebSocket or HTTP to all clients
-    // For now, just mark as complete
+    setStep('RELOAD', runContext);
+
+    if (typeof runContext?.onReloadRequested === 'function') {
+      await Promise.resolve(runContext.onReloadRequested(getUpdateState()));
+    }
+
     console.log('✅ Update completed - clients should reload');
-    completeStep();
+    completeStep(runContext);
     updateState.progress = 100;
+    updateState.timestamp = new Date();
+    emitState(runContext);
   } catch (e) {
-    setStep('RELOAD', `Erreur lors du rechargement: ${e.message}`);
+    setStep('RELOAD', runContext, `Erreur lors du rechargement: ${e.message}`);
     throw e;
   }
 }
@@ -253,7 +281,12 @@ async function signalReload() {
 /**
  * Main update process
  */
-async function runUpdate() {
+async function runUpdate(options = {}) {
+  const runContext = {
+    onStateChange: typeof options.onStateChange === 'function' ? options.onStateChange : null,
+    onReloadRequested: typeof options.onReloadRequested === 'function' ? options.onReloadRequested : null,
+  };
+
   if (updateState.isRunning) {
     console.warn('Update already in progress');
     return updateState;
@@ -264,27 +297,47 @@ async function runUpdate() {
   updateState.progress = 0;
   updateState.error = null;
   updateState.timestamp = new Date();
+  updateState.startedAt = updateState.timestamp;
+  updateState.completedAt = null;
+  emitState(runContext);
+
+  let backupPath = null;
 
   try {
     // Backup
-    const backupPath = await backupSystem();
+    backupPath = await backupSystem(runContext);
 
     // Update
-    npmInstall();
-    buildProject();
+    npmInstall(runContext);
+    buildProject(runContext);
 
     // Restore
-    await restoreSystem(backupPath);
+    await restoreSystem(backupPath, runContext);
 
     // Signal reload
-    await signalReload();
+    await signalReload(runContext);
 
     updateState.isRunning = false;
+    updateState.completedAt = new Date();
+    updateState.timestamp = updateState.completedAt;
+    emitState(runContext);
     return { success: true, state: updateState };
   } catch (error) {
     console.error('❌ Update failed:', error);
+
+    if (backupPath) {
+      try {
+        await restoreSystem(backupPath, runContext);
+      } catch (restoreError) {
+        console.error('❌ Restore failed after update error:', restoreError);
+      }
+    }
+
     updateState.isRunning = false;
     updateState.error = error.message;
+    updateState.completedAt = new Date();
+    updateState.timestamp = updateState.completedAt;
+    emitState(runContext);
     return { success: false, error: error.message, state: updateState };
   }
 }
@@ -303,15 +356,7 @@ function getUpdateState() {
  * Reset update state (admin only)
  */
 function resetUpdateState() {
-  updateState = {
-    isRunning: false,
-    currentStep: 'idle',
-    progress: 0,
-    timestamp: null,
-    error: null,
-    backupPath: null,
-    backupDateTime: null,
-  };
+  updateState = createDefaultState();
 }
 
 module.exports = {
