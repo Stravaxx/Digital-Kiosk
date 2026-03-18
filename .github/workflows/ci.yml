@@ -24,11 +24,21 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Install dependencies (root)
         run: npm ci
 
-      - name: Build application
+      - name: Build Vite application
         run: npm run build
 
-      - name: Run tests (if any)
+      - name: Run tests
         run: npm test --if-present
+
+      - name: Install dependencies (panel)
+        run: npm ci
+        working-directory: panel
+
+      - name: Build Next.js panel
+        run: npm run build
+        working-directory: panel
+        env:
+          API_BASE_URL: http://localhost:8787

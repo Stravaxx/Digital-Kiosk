@@ -1,9 +1,11 @@
+import { getClientEnv } from './runtimeEnv';
+
 const DB_NAME = 'digital-signage-client-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'kv';
 
 function getSystemApiBase(): string {
-  const envBase = (import.meta.env.VITE_ADMIN_API_BASE as string | undefined)?.trim() || '';
+  const envBase = getClientEnv('VITE_ADMIN_API_BASE');
   return envBase || window.location.origin;
 }
 

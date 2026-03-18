@@ -9,15 +9,37 @@ interface TopbarProps {
   darkMode?: boolean;
   onToggleDarkMode?: () => void;
   onOpenMenu?: () => void;
+  searchValue?: string;
+  onSearchValueChange?: (value: string) => void;
+  searchEnabled?: boolean;
 }
 
-export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: TopbarProps) {
+export function Topbar({
+  darkMode = true,
+  onToggleDarkMode,
+  onOpenMenu,
+  searchValue = '',
+  onSearchValueChange,
+  searchEnabled = false
+}: TopbarProps) {
   const navigate = useNavigate();
   const currentSession = getCurrentAdminSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [serverOnline, setServerOnline] = useState(true);
+  const [updateRunning, setUpdateRunning] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const statusLabel = useMemo(() => (serverOnline ? 'Connecté' : 'Déconnecté'), [serverOnline]);
+  const statusLabel = useMemo(() => {
+    if (updateRunning) {
+      return 'En mise à jour';
+    }
+    return serverOnline ? 'Connecté' : 'Déconnecté';
+  }, [serverOnline, updateRunning]);
+  const statusClassName = useMemo(() => {
+    if (updateRunning) {
+      return 'text-[#f59e0b]';
+    }
+    return serverOnline ? 'text-[#22c55e]' : 'text-[#ef4444]';
+  }, [serverOnline, updateRunning]);
 
   const onLogout = async () => {
     void appendSystemLog({
@@ -52,14 +74,38 @@ export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: Topbar
       }
     };
 
+    const probeUpdate = async () => {
+      try {
+        const response = await fetch(`${getSystemApiBase()}/api/system/update/state`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        if (!active) return;
+        if (!response.ok) {
+          setUpdateRunning(false);
+          return;
+        }
+        const payload = await response.json();
+        setUpdateRunning(Boolean(payload?.isRunning));
+      } catch {
+        if (!active) return;
+        setUpdateRunning(false);
+      }
+    };
+
     void probe();
+    void probeUpdate();
     const timer = window.setInterval(() => {
       void probe();
     }, 8000);
+    const updateTimer = window.setInterval(() => {
+      void probeUpdate();
+    }, 3000);
 
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.clearInterval(updateTimer);
     };
   }, []);
 
@@ -92,7 +138,13 @@ export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: Topbar
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" size={20} />
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={searchEnabled ? 'Rechercher dans le calendrier...' : 'Recherche (active sur Calendrier uniquement)'}
+            value={searchEnabled ? searchValue : ''}
+            onChange={(event) => {
+              if (!searchEnabled) return;
+              onSearchValueChange?.(event.target.value);
+            }}
+            disabled={!searchEnabled}
             className="w-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[16px] pl-10 pr-4 py-2 text-[#e5e7eb] placeholder:text-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#3b82f6] transition-all duration-200"
           />
         </div>
@@ -149,7 +201,7 @@ export function Topbar({ darkMode = true, onToggleDarkMode, onOpenMenu }: Topbar
               </div>
               <div>
                 <p className="text-xs text-[#9ca3af]">Statut serveur</p>
-                <p className={`text-sm ${serverOnline ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{statusLabel}</p>
+                <p className={`text-sm ${statusClassName}`}>{statusLabel}</p>
               </div>
               <button
                 className="w-full mt-1 rounded-[10px] border border-[rgba(255,255,255,0.14)] px-3 py-2 text-sm text-[#e5e7eb] hover:bg-[rgba(255,255,255,0.08)] transition-all duration-200"

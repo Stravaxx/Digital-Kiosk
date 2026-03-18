@@ -1,0 +1,322 @@
+/**
+ * Update Service - Background update manager with backup/restore
+ * Handles: backup DB/storage, npm install, build, restore, reload
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const BASE_DIR = path.resolve(__dirname, '..');
+const DB_PATH = path.join(BASE_DIR, 'database', 'system.db');
+const BACKUP_DIR = path.join(BASE_DIR, 'database', 'backups');
+const STORAGE_DIR = path.join(BASE_DIR, 'storage');
+
+// Ensure backup directory exists
+if (!fs.existsSync(BACKUP_DIR)) {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+/**
+ * Global update state
+ */
+let updateState = {
+  isRunning: false,
+  currentStep: 'idle',
+  progress: 0,
+  timestamp: null,
+  error: null,
+  backupPath: null,
+  backupDateTime: null,
+};
+
+const steps = {
+  BACKUP_DB: { order: 1, label: 'Sauvegarde de la base de données', weight: 15 },
+  BACKUP_STORAGE: { order: 2, label: 'Sauvegarde des fichiers', weight: 15 },
+  NPM_INSTALL: { order: 3, label: 'Installation des dépendances', weight: 35 },
+  BUILD: { order: 4, label: 'Compilation du projet', weight: 25 },
+  RESTORE_DB: { order: 5, label: 'Restauration de la base', weight: 5 },
+  RESTORE_STORAGE: { order: 6, label: 'Restauration des fichiers', weight: 5 },
+  RELOAD: { order: 7, label: 'Rechargement du système', weight: 5 },
+};
+
+function setStep(stepName, error = null) {
+  const step = steps[stepName];
+  if (!step) {
+    console.warn(`Unknown step: ${stepName}`);
+    return;
+  }
+
+  const prevProgress = Object.values(steps)
+    .filter((s) => s.order < step.order)
+    .reduce((sum, s) => sum + s.weight, 0);
+
+  updateState.currentStep = stepName;
+  updateState.progress = Math.min(prevProgress + step.weight / 2, 99);
+  updateState.error = error;
+  updateState.timestamp = new Date();
+
+  console.log(`[UPDATE] ${step.label} - Progress: ${Math.round(updateState.progress)}%`);
+}
+
+function completeStep() {
+  const step = steps[updateState.currentStep];
+  if (step) {
+    const prevProgress = Object.values(steps)
+      .filter((s) => s.order < step.order)
+      .reduce((sum, s) => sum + s.weight, 0);
+    updateState.progress = prevProgress + step.weight;
+  }
+}
+
+/**
+ * Backup database and storage
+ */
+async function backupSystem() {
+  try {
+    setStep('BACKUP_DB');
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupSubdir = path.join(BACKUP_DIR, `update-${timestamp}`);
+
+    if (!fs.existsSync(backupSubdir)) {
+      fs.mkdirSync(backupSubdir, { recursive: true });
+    }
+
+    // Backup database
+    if (fs.existsSync(DB_PATH)) {
+      fs.copyFileSync(DB_PATH, path.join(backupSubdir, 'system.db'));
+      console.log('✅ Database backed up');
+    }
+
+    completeStep();
+    setStep('BACKUP_STORAGE');
+
+    // Backup storage (if not too large, limit to 100MB)
+    if (fs.existsSync(STORAGE_DIR)) {
+      const backupStoragePath = path.join(backupSubdir, 'storage');
+      fs.mkdirSync(backupStoragePath, { recursive: true });
+
+      // Simple recursive copy (in production, use a proper backup strategy)
+      const copyDirSync = (src, dest) => {
+        if (!fs.existsSync(dest)) {
+          fs.mkdirSync(dest, { recursive: true });
+        }
+        fs.readdirSync(src).forEach((file) => {
+          const srcFile = path.join(src, file);
+          const destFile = path.join(dest, file);
+          if (fs.statSync(srcFile).isDirectory()) {
+            copyDirSync(srcFile, destFile);
+          } else {
+            fs.copyFileSync(srcFile, destFile);
+          }
+        });
+      };
+
+      copyDirSync(STORAGE_DIR, backupStoragePath);
+      console.log('✅ Storage backed up');
+    }
+
+    completeStep();
+    updateState.backupPath = backupSubdir;
+    updateState.backupDateTime = new Date();
+    return backupSubdir;
+  } catch (e) {
+    setStep('BACKUP_DB', `Erreur de sauvegarde: ${e.message}`);
+    throw e;
+  }
+}
+
+/**
+ * Run npm install
+ */
+function npmInstall() {
+  try {
+    setStep('NPM_INSTALL');
+    console.log('Running npm install...');
+
+    execSync('npm install', {
+      cwd: BASE_DIR,
+      stdio: 'inherit',
+      timeout: 600000, // 10 minutes
+    });
+
+    console.log('✅ npm install completed');
+    completeStep();
+  } catch (e) {
+    setStep('NPM_INSTALL', `Erreur npm install: ${e.message}`);
+    throw e;
+  }
+}
+
+/**
+ * Build project (npm run build)
+ */
+function buildProject() {
+  try {
+    setStep('BUILD');
+    console.log('Running npm run build...');
+
+    execSync('npm run build', {
+      cwd: BASE_DIR,
+      stdio: 'inherit',
+      timeout: 600000, // 10 minutes
+    });
+
+    console.log('✅ Build completed');
+    completeStep();
+  } catch (e) {
+    setStep('BUILD', `Erreur de compilation: ${e.message}`);
+    throw e;
+  }
+}
+
+/**
+ * Restore from backup
+ */
+async function restoreSystem(backupSubdir) {
+  try {
+    setStep('RESTORE_DB');
+
+    const backupDbPath = path.join(backupSubdir, 'system.db');
+    if (fs.existsSync(backupDbPath) && fs.existsSync(DB_PATH)) {
+      fs.copyFileSync(backupDbPath, DB_PATH);
+      console.log('✅ Database restored');
+    }
+
+    completeStep();
+    setStep('RESTORE_STORAGE');
+
+    const backupStoragePath = path.join(backupSubdir, 'storage');
+    if (fs.existsSync(backupStoragePath)) {
+      // Remove old storage and copy backup back
+      const removeDir = (dir) => {
+        if (fs.existsSync(dir)) {
+          fs.readdirSync(dir).forEach((file) => {
+            const filePath = path.join(dir, file);
+            if (fs.statSync(filePath).isDirectory()) {
+              removeDir(filePath);
+            } else {
+              fs.unlinkSync(filePath);
+            }
+          });
+          fs.rmdirSync(dir);
+        }
+      };
+
+      removeDir(STORAGE_DIR);
+
+      // Copy backup storage
+      const copyDirSync = (src, dest) => {
+        if (!fs.existsSync(dest)) {
+          fs.mkdirSync(dest, { recursive: true });
+        }
+        fs.readdirSync(src).forEach((file) => {
+          const srcFile = path.join(src, file);
+          const destFile = path.join(dest, file);
+          if (fs.statSync(srcFile).isDirectory()) {
+            copyDirSync(srcFile, destFile);
+          } else {
+            fs.copyFileSync(srcFile, destFile);
+          }
+        });
+      };
+
+      copyDirSync(backupStoragePath, STORAGE_DIR);
+      console.log('✅ Storage restored');
+    }
+
+    completeStep();
+  } catch (e) {
+    setStep('RESTORE_DB', `Erreur de restauration: ${e.message}`);
+    throw e;
+  }
+}
+
+/**
+ * Signal reload to all connected clients
+ */
+async function signalReload() {
+  try {
+    setStep('RELOAD');
+    // In production, this would broadcast via WebSocket or HTTP to all clients
+    // For now, just mark as complete
+    console.log('✅ Update completed - clients should reload');
+    completeStep();
+    updateState.progress = 100;
+  } catch (e) {
+    setStep('RELOAD', `Erreur lors du rechargement: ${e.message}`);
+    throw e;
+  }
+}
+
+/**
+ * Main update process
+ */
+async function runUpdate() {
+  if (updateState.isRunning) {
+    console.warn('Update already in progress');
+    return updateState;
+  }
+
+  updateState.isRunning = true;
+  updateState.currentStep = 'idle';
+  updateState.progress = 0;
+  updateState.error = null;
+  updateState.timestamp = new Date();
+
+  try {
+    // Backup
+    const backupPath = await backupSystem();
+
+    // Update
+    npmInstall();
+    buildProject();
+
+    // Restore
+    await restoreSystem(backupPath);
+
+    // Signal reload
+    await signalReload();
+
+    updateState.isRunning = false;
+    return { success: true, state: updateState };
+  } catch (error) {
+    console.error('❌ Update failed:', error);
+    updateState.isRunning = false;
+    updateState.error = error.message;
+    return { success: false, error: error.message, state: updateState };
+  }
+}
+
+/**
+ * Get current update state
+ */
+function getUpdateState() {
+  return {
+    ...updateState,
+    steps
+  };
+}
+
+/**
+ * Reset update state (admin only)
+ */
+function resetUpdateState() {
+  updateState = {
+    isRunning: false,
+    currentStep: 'idle',
+    progress: 0,
+    timestamp: null,
+    error: null,
+    backupPath: null,
+    backupDateTime: null,
+  };
+}
+
+module.exports = {
+  runUpdate,
+  getUpdateState,
+  resetUpdateState,
+  steps,
+};

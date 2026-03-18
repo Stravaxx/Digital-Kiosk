@@ -10,6 +10,7 @@ import { type PlaylistModel } from '../../shared/playlistRegistry';
 import { markdownToHtml } from '../../services/markdownService';
 import { computeNextMediaIndex, isVideoSource, resolvePlaylistMediaItems, type PlayerMediaItem } from '../../services/playerPlaylistEngine';
 import { hydrateLocalStorageKeyFromDb, mirrorLocalStorageKeyToDb, syncLocalStorageKeyFromSystem } from '../../services/clientDbStorage';
+import { getClientEnv } from '../../services/runtimeEnv';
 
 interface PlayerIdentity {
   deviceId: string;
@@ -609,7 +610,7 @@ export function Player() {
   const instanceId = query.get('instance') || '1';
   const forcedDeviceId = query.get('deviceId') || undefined;
   const detectedOs = useMemo(() => detectSystemOs(), []);
-  const playerVersion = String((import.meta.env.VITE_APP_VERSION as string | undefined) || 'dev');
+  const playerVersion = String(getClientEnv('VITE_APP_VERSION') || 'dev');
 
   const [mode, setMode] = useState<PlayerMode>('loading');
   const [online, setOnline] = useState(false);
@@ -673,7 +674,7 @@ export function Player() {
   }, [effectiveTheme]);
 
   useEffect(() => {
-    const base = (import.meta.env.VITE_ADMIN_API_BASE as string | undefined)?.trim() || '';
+    const base = getClientEnv('VITE_ADMIN_API_BASE');
     const resolvedBase = base || window.location.origin;
     setAdminBase(resolvedBase);
     const playerClientIp = getPlayerClientAddress();

@@ -30,14 +30,23 @@ import { EVENTS_KEY, ROOMS_KEY } from '../shared/localCalendar';
 import { SYSTEM_SETTINGS_KEY } from '../services/systemSettingsService';
 import { PLAYER_CONNECTION_KEY_STORAGE } from '../services/playerSecurityService';
 import { LOGS_STORAGE_KEY } from '../services/logService';
+import { getSystemWsUrl } from '../services/systemApiBase';
 
 function AdminShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [calendarSearch, setCalendarSearch] = useState('');
   const location = useLocation();
+  const isCalendarRoute = location.pathname.startsWith('/calendar');
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isCalendarRoute && calendarSearch) {
+      setCalendarSearch('');
+    }
+  }, [isCalendarRoute, calendarSearch]);
 
   return (
     <div className="min-h-screen bg-[#0f172a]">
@@ -51,9 +60,15 @@ function AdminShell() {
       ) : null}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="md:pl-64 min-h-screen flex flex-col overflow-hidden">
-        <Topbar darkMode={true} onOpenMenu={() => setSidebarOpen((value) => !value)} />
+        <Topbar
+          darkMode={true}
+          onOpenMenu={() => setSidebarOpen((value) => !value)}
+          searchEnabled={isCalendarRoute}
+          searchValue={calendarSearch}
+          onSearchValueChange={setCalendarSearch}
+        />
         <main className="flex-1 overflow-y-auto">
-          <Outlet />
+          <Outlet context={{ calendarSearch, setCalendarSearch }} />
         </main>
       </div>
     </div>
@@ -93,10 +108,7 @@ export default function App() {
 
     void requestPersistentSystemStorage();
 
-    const envBase = (import.meta.env.VITE_ADMIN_API_BASE as string | undefined)?.trim() || '';
-    const systemApiBase = new URL(envBase || window.location.origin);
-    const wsProtocol = systemApiBase.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${systemApiBase.host}/ws/system-sync`;
+    const wsUrl = getSystemWsUrl('/ws/system-sync');
 
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;

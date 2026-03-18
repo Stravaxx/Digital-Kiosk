@@ -19,6 +19,8 @@ const {
   generateSessionToken
 } = require('./scripts/security/adminAuthUtils.cjs');
 
+const updateService = require('./scripts/update-service.cjs');
+
 const app = express();
 const API_ONLY = String(process.env.API_ONLY || '').toLowerCase() === 'true';
 const SERVER_MODE = String(process.env.SERVER_MODE || 'unified').toLowerCase();
@@ -171,6 +173,10 @@ async function fetchLatestReleaseInfo() {
     cache: 'no-store'
   });
 
+  if (response.status === 404) {
+    return null;
+  }
+
   if (!response.ok) {
     throw new Error(`github release check failed (${response.status})`);
   }
@@ -201,6 +207,17 @@ async function checkForReleaseUpdate({ force = false } = {}) {
   try {
     updateState.currentVersion = await readAppVersionFromPackageJson();
     const release = await fetchLatestReleaseInfo();
+    if (!release) {
+      updateState.latestVersion = null;
+      updateState.latestTag = null;
+      updateState.latestPublishedAt = null;
+      updateState.releaseUrl = null;
+      updateState.releaseName = null;
+      updateState.updateAvailable = false;
+      updateState.checkedAt = new Date().toISOString();
+      updateState.checkError = 'Aucune release GitHub trouvée (404).';
+      return updateState;
+    }
     const current = normalizeVersionLikeTag(updateState.currentVersion);
     const latest = normalizeVersionLikeTag(release.version);
     const hasComparableVersions = current.valid && latest.valid;
@@ -714,6 +731,9 @@ function notifySystemSyncUpdate(payload = {}) {
 
 function setupSystemSyncWebSocketServer(server) {
   const wss = new WebSocketServer({ noServer: true });
+
+  // Store global reference for broadcasting
+  global.systemWss = wss;
 
   server.on('upgrade', (req, socket, head) => {
     try {
@@ -2709,6 +2729,74 @@ app.post('/api/system/update/apply', async (req, res) => {
     });
   }
 });
+
+// Background update service endpoints
+app.get('/api/system/update/state', async (_req, res) => {
+  const state = updateService.getUpdateState();
+  return res.json({ ok: true, ...state });
+});
+
+app.post('/api/system/update/execute', async (req, res) => {
+  try {
+    // Check auth (admin only)
+    const token = req.cookies?.[ADMIN_TOKEN_COOKIE_NAME];
+    if (!token || !adminSessions.has(token)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+
+    const state = updateService.getUpdateState();
+    if (state.isRunning) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Update déjà en cours',
+        state
+      });
+    }
+
+    // Start update in background (non-blocking)
+    res.json({ ok: true, message: 'Mise à jour démarrée en arrière-plan', state: updateService.getUpdateState() });
+
+    // Run update asynchronously
+    updateService.runUpdate().then((result) => {
+      console.log('Background update completed:', result);
+      // Broadcast to WebSocket clients that update is done
+      if (global.systemWss) {
+        broadcastUpdateStatus(global.systemWss);
+      }
+    }).catch((error) => {
+      console.error('Background update error:', error);
+      if (global.systemWss) {
+        broadcastUpdateStatus(global.systemWss);
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: String(error?.message || error || 'Erreur lors du démarrage de la mise à jour')
+    });
+  }
+});
+
+/**
+ * Broadcast update status to all WebSocket clients
+ */
+function broadcastUpdateStatus(wss) {
+  const state = updateService.getUpdateState();
+  if (wss && wss.clients) {
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) { // OPEN
+        try {
+          client.send(JSON.stringify({
+            type: 'update-status',
+            payload: state
+          }));
+        } catch (e) {
+          // ignore send errors
+        }
+      }
+    });
+  }
+}
 
 app.put('/api/system/kv/:key', async (req, res) => {
   const key = req.params.key;

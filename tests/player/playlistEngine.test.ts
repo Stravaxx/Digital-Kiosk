@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeNextMediaIndex, resolvePlaylistMediaItems } from '../../src/services/playerPlaylistEngine';
-import type { PlaylistModel } from '../../src/shared/playlistRegistry';
+import { computeNextMediaIndex, resolvePlaylistMediaItems } from '../../src-vite/services/playerPlaylistEngine';
+import type { PlaylistModel } from '../../src-vite/shared/playlistRegistry';
 
 describe('playerPlaylistEngine', () => {
   const playlist: PlaylistModel = {

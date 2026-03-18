@@ -1,0 +1,356 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// SCREENS & DEVICES
+// ============================================================================
+
+model Screen {
+  id                 String    @id @default(cuid())
+  deviceId           String    @unique
+  deviceToken        String    @unique
+  name               String    
+  status             String    @default("offline") // online, offline, stale, pending
+  lastHeartbeat      DateTime?
+  
+  // Hardware info
+  hostName           String?
+  ipAddress          String?
+  resolution         String?   // e.g. "1920x1080"
+  osInfo             String?
+  playerVersion      String?
+  uptime             Int?      // seconds
+  
+  // Telemetry
+  cpuPercent         Float     @default(0)
+  memoryPercent      Float     @default(0)
+  temperatureC       Float     @default(0)
+  diskUsedPercent    Float     @default(0)
+  
+  // Layout & Configuration
+  layoutId           String?
+  layout             Layout?   @relation(fields: [layoutId], references: [id])
+  
+  groupId            String?
+  group              ScreenGroup? @relation(fields: [groupId], references: [id])
+  
+  roomIds            String    @default("") // JSON array of room IDs
+  theme              String?   // JSON serialized theme settings
+  
+  // Commands
+  pendingCommand     String?   // Queued command for device
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([status])
+  @@index([groupId])
+  @@index([layoutId])
+}
+
+// ============================================================================
+// LAYOUTS & ZONES
+// ============================================================================
+
+model Layout {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  
+  // Layout config
+  width              Int       @default(1920)
+  height             Int       @default(1080)
+  orientation        String    @default("landscape") // landscape, portrait
+  
+  zones              Zone[]
+  
+  // Metadata
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?   // admin user ID
+  
+  screens            Screen[]
+  
+  @@index([createdAt])
+}
+
+model Zone {
+  id                 String    @id @default(cuid())
+  layoutId           String
+  layout             Layout    @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  
+  name               String
+  type               String    // media, calendar, weather, rss, text, iframe
+  
+  // Positioning
+  x                  Float     @default(0)
+  y                  Float     @default(0)
+  width              Float     @default(1)
+  height             Float     @default(1)
+  
+  // Content configuration
+  playlistId         String?
+  playlist           Playlist? @relation(fields: [playlistId], references: [id])
+  
+  config             String?   // JSON serialized zone-specific config
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([layoutId])
+  @@index([playlistId])
+}
+
+// ============================================================================
+// PLAYLISTS & MEDIA
+// ============================================================================
+
+model Playlist {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  type               String    @default("sequential") // sequential, random
+  
+  items              PlaylistItem[]
+  
+  // Metadata
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?
+  
+  zones              Zone[]
+  
+  @@index([createdAt])
+}
+
+model PlaylistItem {
+  id                 String    @id @default(cuid())
+  playlistId         String
+  playlist           Playlist  @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  
+  kind               String    // asset, calendar, weather, rss, text, iframe, widget
+  title              String?
+  duration           Int       @default(10) // seconds
+  priority           Int       @default(0)
+  
+  // Asset reference
+  assetId            String?
+  asset              Asset?    @relation(fields: [assetId], references: [id])
+  assetType          String?   // image, video, document
+  
+  // Dynamic content
+  url                String?
+  htmlContent        String?
+  
+  // Scheduling
+  scheduleStart      String?   // ISO 8601 cron or date
+  scheduleEnd        String?   // ISO 8601 date
+  daysOfWeek         String    @default("") // JSON array: [0-6]
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([playlistId])
+  @@index([assetId])
+}
+
+// ============================================================================
+// ASSETS
+// ============================================================================
+
+model Asset {
+  id                 String    @id @default(cuid())
+  name               String
+  originalFileName   String?
+  extension          String?
+  mimeType           String?
+  
+  // Storage
+  path               String    @unique
+  size               Int       @default(0)
+  
+  type               String    // image, video, document, other
+  
+  // Metadata
+  uploadedAt         DateTime  @default(now())
+  uploadedBy         String?
+  
+  playlistItems      PlaylistItem[]
+  
+  @@index([type])
+  @@index([uploadedAt])
+}
+
+// ============================================================================
+// ROOMS & CALENDAR
+// ============================================================================
+
+model Room {
+  id                 String    @id @default(cuid())
+  name               String
+  location           String?
+  color              String    @default("#3B82F6")
+  capacity           Int       @default(1)
+  
+  // Calendar & Display
+  calendarSourceId   String?
+  calendarSource     CalendarSource? @relation(fields: [calendarSourceId], references: [id])
+  
+  templateId         String?
+  template           RoomTemplate? @relation(fields: [templateId], references: [id])
+  
+  screenId           String?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([calendarSourceId])
+  @@index([templateId])
+}
+
+model CalendarSource {
+  id                 String    @id @default(cuid())
+  name               String
+  type               String    // ical, json, manual
+  
+  // Configuration
+  url                String?
+  authToken          String?
+  syncIntervalMins   Int       @default(5)
+  lastSyncAt         DateTime?
+  
+  rooms              Room[]
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([type])
+}
+
+model RoomTemplate {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  
+  // Template config
+  displayMode        String?   // e.g. "meeting-today", "weekly-agenda"
+  config             String?   // JSON serialized template settings
+  
+  rooms              Room[]
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model LocalCalendarEvent {
+  id                 String    @id @default(cuid())
+  roomId             String
+  
+  title              String
+  description        String?
+  
+  startTime          DateTime
+  endTime            DateTime
+  
+  organizer          String?
+  location           String?
+  
+  isAllDay           Boolean   @default(false)
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([roomId])
+  @@index([startTime])
+}
+
+// ============================================================================
+// SCREEN GROUPS & THEMES
+// ============================================================================
+
+model ScreenGroup {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  
+  theme              String?   // JSON serialized theme settings
+  
+  screens            Screen[]
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// ============================================================================
+// SYSTEM SETTINGS & LOGS
+// ============================================================================
+
+model SystemSetting {
+  key                String    @id
+  value              String    // JSON serialized
+  
+  updatedAt          DateTime  @updatedAt
+}
+
+model SystemLog {
+  id                 String    @id @default(cuid())
+  type               String    // ops, alert, error, info
+  level              String    // info, warn, error, critical
+  source             String    // which subsystem
+  
+  message            String
+  details            String?   // JSON serialized
+  
+  metadata           String?   // JSON additional context
+  
+  createdAt          DateTime  @default(now())
+  
+  @@index([level])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model AdminUser {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  passwordHash       String
+  
+  isAdmin            Boolean   @default(false)
+  lastLoginAt        DateTime?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  @@index([lastLoginAt])
+}
+
+model StoragePolicy {
+  id                 String    @id @default("default")
+  maxAssetBytes      BigInt    @default(6442450944) // 6GB
+  maxCacheBytes      BigInt    @default(1073741824) // 1GB
+  logsRetentionDays  Int       @default(30)
+  autoPurge          Boolean   @default(true)
+  staleHeartbeatSecs Int       @default(90)
+  
+  updatedAt          DateTime  @updatedAt
+}
+
+model AlertPolicy {
+  id                 String    @id @default("default")
+  offlineAfterSecs   Int       @default(180)
+  staleAfterSecs     Int       @default(90)
+  maxTemperatureC    Float     @default(80)
+  maxStorageUsagePercent Float @default(85)
+  maxHeartbeatLatencyMs Int    @default(30000)
+  
+  updatedAt          DateTime  @updatedAt
+}

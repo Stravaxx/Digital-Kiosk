@@ -17,6 +17,17 @@ export interface UpdateStatus {
   requiresRestart: boolean;
 }
 
+export interface BackgroundUpdateState {
+  isRunning: boolean;
+  currentStep: string;
+  progress: number;
+  timestamp: string | null;
+  error: string | null;
+  backupPath: string | null;
+  backupDateTime: string | null;
+  steps?: Record<string, { order: number; label: string; weight: number }>;
+}
+
 async function parseUpdateResponse(response: Response): Promise<UpdateStatus> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload?.ok === false) {
@@ -62,4 +73,43 @@ export async function applyUpdate(): Promise<UpdateStatus> {
     headers: { 'Content-Type': 'application/json' }
   });
   return parseUpdateResponse(response);
+}
+
+export async function executeBackgroundUpdate(): Promise<BackgroundUpdateState> {
+  const response = await fetch('/api/system/update/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(String(payload?.error || 'Impossible de démarrer la mise à jour en arrière-plan.'));
+  }
+  return {
+    isRunning: Boolean(payload?.state?.isRunning),
+    currentStep: String(payload?.state?.currentStep || 'idle'),
+    progress: Number(payload?.state?.progress || 0),
+    timestamp: typeof payload?.state?.timestamp === 'string' ? payload.state.timestamp : null,
+    error: typeof payload?.state?.error === 'string' ? payload.state.error : null,
+    backupPath: typeof payload?.state?.backupPath === 'string' ? payload.state.backupPath : null,
+    backupDateTime: typeof payload?.state?.backupDateTime === 'string' ? payload.state.backupDateTime : null,
+    steps: payload?.state?.steps && typeof payload.state.steps === 'object' ? payload.state.steps : undefined
+  };
+}
+
+export async function getBackgroundUpdateState(): Promise<BackgroundUpdateState> {
+  const response = await fetch('/api/system/update/state', { cache: 'no-store' });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(String(payload?.error || 'Impossible de récupérer le statut de mise à jour.'));
+  }
+  return {
+    isRunning: Boolean(payload?.isRunning),
+    currentStep: String(payload?.currentStep || 'idle'),
+    progress: Number(payload?.progress || 0),
+    timestamp: typeof payload?.timestamp === 'string' ? payload.timestamp : null,
+    error: typeof payload?.error === 'string' ? payload.error : null,
+    backupPath: typeof payload?.backupPath === 'string' ? payload.backupPath : null,
+    backupDateTime: typeof payload?.backupDateTime === 'string' ? payload.backupDateTime : null,
+    steps: payload?.steps && typeof payload.steps === 'object' ? payload.steps : undefined
+  };
 }

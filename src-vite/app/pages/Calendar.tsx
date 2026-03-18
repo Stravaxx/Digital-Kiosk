@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar as CalendarIcon, Plus, Trash2, Users, Clock, Pencil, Copy } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Trash2, Users, Clock, Pencil, Copy, SlidersHorizontal, X } from 'lucide-react';
+import { useOutletContext } from 'react-router-dom';
 import { GlassCard } from '../components/GlassCard';
 import { GlassButton } from '../components/GlassButton';
 import {
@@ -54,7 +55,21 @@ const weekdayLabels = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const monthLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Dec'];
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-type CalendarSortMode = 'date' | 'az' | 'za' | 'room';
+type CalendarSortMode = 'date_desc' | 'date_asc' | 'az' | 'za' | 'room';
+
+function toFrDayNumber(value: string): number {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 0;
+  return (date.getFullYear() * 10000) + ((date.getMonth() + 1) * 100) + date.getDate();
+}
+
+function toTitleSortKey(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLocaleLowerCase('fr-FR');
+}
 
 function getOccurrenceSourceId(occurrence: LocalCalendarOccurrence): string {
   return occurrence.sourceEventId || occurrence.recurrenceParentId || occurrence.id;
@@ -120,11 +135,37 @@ function matchesSearchTerm(occurrence: LocalCalendarOccurrence, query: string): 
 
 function sortOccurrences(list: LocalCalendarOccurrence[], mode: CalendarSortMode): LocalCalendarOccurrence[] {
   const next = [...list];
+  if (mode === 'date_desc') {
+    return next.sort((a, b) => {
+      const byDay = toFrDayNumber(b.startAt) - toFrDayNumber(a.startAt);
+      if (byDay !== 0) return byDay;
+      return new Date(b.startAt).getTime() - new Date(a.startAt).getTime();
+    });
+  }
+  if (mode === 'date_asc') {
+    return next.sort((a, b) => {
+      const byDay = toFrDayNumber(a.startAt) - toFrDayNumber(b.startAt);
+      if (byDay !== 0) return byDay;
+      return new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
+    });
+  }
   if (mode === 'az') {
-    return next.sort((a, b) => a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' }));
+    return next.sort((a, b) => {
+      const aKey = toTitleSortKey(a.title);
+      const bKey = toTitleSortKey(b.title);
+      const byFirstLetter = (aKey[0] || '').localeCompare(bKey[0] || '', 'fr', { sensitivity: 'base' });
+      if (byFirstLetter !== 0) return byFirstLetter;
+      return aKey.localeCompare(bKey, 'fr', { sensitivity: 'base' });
+    });
   }
   if (mode === 'za') {
-    return next.sort((a, b) => b.title.localeCompare(a.title, 'fr', { sensitivity: 'base' }));
+    return next.sort((a, b) => {
+      const aKey = toTitleSortKey(a.title);
+      const bKey = toTitleSortKey(b.title);
+      const byFirstLetter = (bKey[0] || '').localeCompare(aKey[0] || '', 'fr', { sensitivity: 'base' });
+      if (byFirstLetter !== 0) return byFirstLetter;
+      return bKey.localeCompare(aKey, 'fr', { sensitivity: 'base' });
+    });
   }
   if (mode === 'room') {
     return next.sort((a, b) => {
@@ -134,7 +175,7 @@ function sortOccurrences(list: LocalCalendarOccurrence[], mode: CalendarSortMode
     });
   }
 
-  return next.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  return next.sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
 }
 
 function recurrenceDaysToFlags(days: number[]): boolean[] {
@@ -223,6 +264,10 @@ function buildRecurrenceFromForm(form: EventForm): LocalCalendarEvent['recurrenc
 }
 
 export function Calendar() {
+  const { calendarSearch = '', setCalendarSearch } = useOutletContext<{
+    calendarSearch?: string;
+    setCalendarSearch?: (value: string) => void;
+  }>();
   const [rooms, setRooms] = useState<RoomModel[]>([]);
   const [events, setEvents] = useState<LocalCalendarEvent[]>([]);
   const [showEventModal, setShowEventModal] = useState(false);
@@ -231,9 +276,17 @@ export function Calendar() {
   const [applyScope, setApplyScope] = useState<'series' | 'single'>('series');
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [formError, setFormError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortMode, setSortMode] = useState<CalendarSortMode>('date');
-  const [dateSliderValue, setDateSliderValue] = useState(0);
+  const [sortMode, setSortMode] = useState<CalendarSortMode>('date_desc');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [rangeStartPercent, setRangeStartPercent] = useState(0);
+  const [rangeEndPercent, setRangeEndPercent] = useState(100);
+
+  const resetAllFilters = () => {
+    setSortMode('date_desc');
+    setRangeStartPercent(0);
+    setRangeEndPercent(100);
+    setCalendarSearch?.('');
+  };
 
   useEffect(() => {
     setRooms(loadRooms());
@@ -359,7 +412,7 @@ export function Calendar() {
     () => keepSingleOccurrencePerSeries(timeline, now, 'past'),
     [timeline, now]
   );
-  const normalizedSearch = useMemo(() => normalizeSearchTerm(searchTerm), [searchTerm]);
+  const normalizedSearch = useMemo(() => normalizeSearchTerm(calendarSearch), [calendarSearch]);
   const timelineBounds = useMemo(() => {
     if (timeline.length === 0) return null;
     const values = timeline
@@ -372,32 +425,45 @@ export function Calendar() {
     };
   }, [timeline]);
 
-  const selectedDateMs = useMemo(() => {
+  const selectedRangeMs = useMemo(() => {
     if (!timelineBounds) return null;
     const range = timelineBounds.max - timelineBounds.min;
-    if (range <= 0) return timelineBounds.min;
-    return timelineBounds.min + (range * dateSliderValue) / 100;
-  }, [timelineBounds, dateSliderValue]);
+    if (range <= 0) {
+      return { start: timelineBounds.min, end: timelineBounds.max };
+    }
+    const start = timelineBounds.min + (range * Math.min(rangeStartPercent, rangeEndPercent)) / 100;
+    const end = timelineBounds.min + (range * Math.max(rangeStartPercent, rangeEndPercent)) / 100;
+    return { start, end };
+  }, [timelineBounds, rangeStartPercent, rangeEndPercent]);
+
+  const rangeMinPercent = Math.min(rangeStartPercent, rangeEndPercent);
+  const rangeMaxPercent = Math.max(rangeStartPercent, rangeEndPercent);
 
   const filteredUpcomingEvents = useMemo(() => {
     let list = upcomingEvents.filter((event) => matchesSearchTerm(event, normalizedSearch));
 
-    if (sortMode === 'date' && selectedDateMs !== null) {
-      list = list.filter((event) => new Date(event.startAt).getTime() >= selectedDateMs);
+    if (selectedRangeMs) {
+      list = list.filter((event) => {
+        const t = new Date(event.startAt).getTime();
+        return t >= selectedRangeMs.start && t <= selectedRangeMs.end;
+      });
     }
 
     return sortOccurrences(list, sortMode);
-  }, [upcomingEvents, normalizedSearch, sortMode, selectedDateMs]);
+  }, [upcomingEvents, normalizedSearch, sortMode, selectedRangeMs]);
 
   const filteredPastEvents = useMemo(() => {
     let list = pastEvents.filter((event) => matchesSearchTerm(event, normalizedSearch));
 
-    if (sortMode === 'date' && selectedDateMs !== null) {
-      list = list.filter((event) => new Date(event.startAt).getTime() <= selectedDateMs);
+    if (selectedRangeMs) {
+      list = list.filter((event) => {
+        const t = new Date(event.startAt).getTime();
+        return t >= selectedRangeMs.start && t <= selectedRangeMs.end;
+      });
     }
 
     return sortOccurrences(list, sortMode);
-  }, [pastEvents, normalizedSearch, sortMode, selectedDateMs]);
+  }, [pastEvents, normalizedSearch, sortMode, selectedRangeMs]);
 
   const saveEvent = () => {
     setFormError('');
@@ -590,63 +656,129 @@ export function Calendar() {
         </GlassButton>
       </div>
 
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-[#9ca3af]">
+          Recherche active depuis la navbar{normalizedSearch ? ` : “${calendarSearch}”` : ' (aucun mot-clé)' }
+        </p>
+        <GlassButton variant="ghost" onClick={() => setFiltersOpen(true)}>
+          <SlidersHorizontal size={16} className="inline mr-2" />
+          Filtres
+        </GlassButton>
+      </div>
+
+      {filtersOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-[94] bg-black/45"
+          aria-label="Fermer le panneau de filtres"
+          onClick={() => setFiltersOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed right-0 top-16 z-[95] h-[calc(100vh-4rem)] w-[min(360px,92vw)] border-l border-[rgba(255,255,255,0.14)] bg-[rgba(15,23,42,0.96)] backdrop-blur-[20px] p-4 transition-transform duration-200 ${filtersOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[#e5e7eb] text-lg">Filtres calendrier</h3>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(false)}
+            className="p-2 rounded-[10px] hover:bg-[rgba(255,255,255,0.08)]"
+            aria-label="Fermer"
+          >
+            <X size={16} className="text-[#9ca3af]" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="calendar-sort-overlay" className="block text-[#e5e7eb] mb-2">Tri</label>
+            <select
+              id="calendar-sort-overlay"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as CalendarSortMode)}
+              className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb]"
+            >
+              <option className="bg-[#111827] text-[#e5e7eb]" value="date_desc">Date (du plus récent au plus vieux)</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="date_asc">Date (du plus vieux au plus récent)</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="az">Nom (premières lettres, A-Z)</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="za">Nom (premières lettres, Z-A)</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="room">Tri par salle</option>
+            </select>
+          </div>
+
+          <div>
+            <p className="block text-[#e5e7eb] mb-2">Période A → B (DD/MM/YYYY)</p>
+            {timelineBounds && selectedRangeMs ? (
+              <>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-[#9ca3af] mb-2">
+                    <label htmlFor="calendar-range-start">Point A</label>
+                    <label htmlFor="calendar-range-end">Point B</label>
+                  </div>
+
+                  <div className="calendar-range-wrapper">
+                    <div
+                      className="calendar-range-track"
+                      style={{
+                        background: `linear-gradient(to right, rgba(148,163,184,0.35) 0%, rgba(148,163,184,0.35) ${rangeMinPercent}%, rgba(59,130,246,0.85) ${rangeMinPercent}%, rgba(59,130,246,0.85) ${rangeMaxPercent}%, rgba(148,163,184,0.35) ${rangeMaxPercent}%, rgba(148,163,184,0.35) 100%)`
+                      }}
+                    />
+                    <input
+                      id="calendar-range-start"
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={rangeStartPercent}
+                      onChange={(event) => {
+                        const value = Number(event.target.value) || 0;
+                        setRangeStartPercent(Math.min(value, rangeEndPercent));
+                      }}
+                      className="calendar-range-input"
+                    />
+                    <input
+                      id="calendar-range-end"
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={rangeEndPercent}
+                      onChange={(event) => {
+                        const value = Number(event.target.value) || 100;
+                        setRangeEndPercent(Math.max(value, rangeStartPercent));
+                      }}
+                      className="calendar-range-input"
+                    />
+                  </div>
+
+                  <div className="relative h-5 mt-2 text-[11px] text-[#93c5fd]">
+                    <span className="absolute -translate-x-1/2" style={{ left: `${rangeMinPercent}%` }}>A</span>
+                    <span className="absolute -translate-x-1/2" style={{ left: `${rangeMaxPercent}%` }}>B</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-[#9ca3af] mt-2">
+                  <span>{new Date(timelineBounds.min).toLocaleDateString('fr-FR')}</span>
+                  <span>{new Date(timelineBounds.max).toLocaleDateString('fr-FR')}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-[#9ca3af]">Aucune borne disponible (pas d’événements).</p>
+            )}
+          </div>
+
+          <div className="pt-2">
+            <GlassButton variant="ghost" className="w-full" onClick={resetAllFilters}>
+              Reset tous les filtres
+            </GlassButton>
+          </div>
+        </div>
+      </aside>
+
       {rooms.length === 0 && (
         <GlassCard className="p-6">
           <p className="text-[#f59e0b]">Ajoutez d’abord une salle dans la section Salles avant de créer des événements.</p>
         </GlassCard>
       )}
-
-      <GlassCard className="p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="calendar-search" className="block text-[#e5e7eb] mb-2">Recherche événement (mots-clés)</label>
-            <input
-              id="calendar-search"
-              type="text"
-              placeholder="Titre, description, salle, animateur..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="w-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[16px] px-4 py-2 text-[#e5e7eb]"
-            />
-          </div>
-          <div>
-            <label htmlFor="calendar-sort" className="block text-[#e5e7eb] mb-2">Tri</label>
-            <select
-              id="calendar-sort"
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as CalendarSortMode)}
-              className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb]"
-            >
-              <option className="bg-[#111827] text-[#e5e7eb]" value="date">Date</option>
-              <option className="bg-[#111827] text-[#e5e7eb]" value="az">Ordre alphabétique A-Z</option>
-              <option className="bg-[#111827] text-[#e5e7eb]" value="za">Ordre alphabétique Z-A</option>
-              <option className="bg-[#111827] text-[#e5e7eb]" value="room">Tri par salle</option>
-            </select>
-          </div>
-        </div>
-
-        {sortMode === 'date' && timelineBounds && selectedDateMs !== null ? (
-          <div>
-            <label htmlFor="calendar-date-slider" className="block text-[#e5e7eb] mb-2">
-              Date pivot: {new Date(selectedDateMs).toLocaleString('fr-FR')}
-            </label>
-            <input
-              id="calendar-date-slider"
-              type="range"
-              min={0}
-              max={100}
-              value={dateSliderValue}
-              onChange={(event) => setDateSliderValue(Number(event.target.value) || 0)}
-              className="w-full"
-            />
-            <div className="flex items-center justify-between text-xs text-[#9ca3af] mt-1">
-              <span>{new Date(timelineBounds.min).toLocaleDateString('fr-FR')}</span>
-              <span>{new Date(timelineBounds.max).toLocaleDateString('fr-FR')}</span>
-            </div>
-          </div>
-        ) : null}
-      </GlassCard>
-
       {timeline.length === 0 ? (
         <GlassCard className="p-6">
           <div className="text-center py-20">

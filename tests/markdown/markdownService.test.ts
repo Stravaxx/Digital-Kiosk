@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markdownToHtml } from '../../src/services/markdownService';
+import { markdownToHtml } from '../../src-vite/services/markdownService';
 
 describe('markdownToHtml', () => {
   it('renders table syntax', () => {

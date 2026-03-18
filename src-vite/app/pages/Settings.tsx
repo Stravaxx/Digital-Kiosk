@@ -10,9 +10,11 @@ import {
   type SystemSettings
 } from '../../services/systemSettingsService';
 import {
-  applyUpdate,
   checkForUpdates,
+  executeBackgroundUpdate,
+  getBackgroundUpdateState,
   getUpdateStatus,
+  type BackgroundUpdateState,
   type UpdateStatus
 } from '../../services/updateService';
 
@@ -38,6 +40,7 @@ export function Settings() {
   const [newRole, setNewRole] = useState<'admin' | 'operator' | 'viewer'>('viewer');
   const [userActionBusy, setUserActionBusy] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [backgroundUpdateState, setBackgroundUpdateState] = useState<BackgroundUpdateState | null>(null);
   const [updatesLoading, setUpdatesLoading] = useState(true);
   const [updatesBusy, setUpdatesBusy] = useState<'check' | 'apply' | ''>('');
   const [updatesError, setUpdatesError] = useState('');
@@ -107,8 +110,10 @@ export function Settings() {
     const loadUpdateStatus = async (forceCheck = false) => {
       try {
         const nextStatus = forceCheck ? await checkForUpdates() : await getUpdateStatus();
+        const nextBackgroundState = await getBackgroundUpdateState().catch(() => null);
         if (!mounted) return;
         setUpdateStatus(nextStatus);
+        setBackgroundUpdateState(nextBackgroundState);
         setUpdatesError('');
         maybeNotifyRelease(nextStatus);
       } catch (error) {
@@ -122,7 +127,7 @@ export function Settings() {
     void loadUpdateStatus();
     const timer = window.setInterval(() => {
       void loadUpdateStatus();
-    }, 60_000);
+    }, 10_000);
 
     return () => {
       mounted = false;
@@ -150,15 +155,19 @@ export function Settings() {
   };
 
   const runApplyUpdate = async () => {
-    if (!window.confirm('Appliquer la mise à jour release maintenant ? Le dépôt local sera mis à jour.')) {
+    if (!window.confirm('Appliquer la mise à jour en arrière-plan ? Une sauvegarde DB + storage sera faite automatiquement.')) {
       return;
     }
 
     setUpdatesBusy('apply');
     setUpdatesError('');
     try {
-      const next = await applyUpdate();
-      setUpdateStatus(next);
+      const state = await executeBackgroundUpdate();
+      setBackgroundUpdateState(state);
+      const next = await getUpdateStatus().catch(() => null);
+      if (next) {
+        setUpdateStatus(next);
+      }
     } catch (error) {
       setUpdatesError(String((error as Error)?.message || 'Application de la mise à jour impossible.'));
     } finally {
@@ -460,6 +469,20 @@ export function Settings() {
               <p className={updateStatus?.updateAvailable ? 'text-[#f59e0b]' : 'text-[#34d399]'}>
                 {updateStatus?.updateAvailable ? 'Nouvelle release disponible' : 'Application à jour'}
               </p>
+            </div>
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
+              <p className="text-[#9ca3af]">Service de mise à jour</p>
+              <p className={backgroundUpdateState?.isRunning ? 'text-[#fcd34d]' : 'text-[#e5e7eb]'}>
+                {backgroundUpdateState?.isRunning ? 'En cours (arrière-plan)' : 'Inactif'}
+              </p>
+              <p className="text-[#9ca3af] mt-1">Progression: {Math.max(0, Math.min(100, Math.round(backgroundUpdateState?.progress || 0)))}%</p>
+            </div>
+            <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] md:col-span-2">
+              <p className="text-[#9ca3af]">Étape en cours</p>
+              <p className="text-[#e5e7eb]">{backgroundUpdateState?.currentStep && backgroundUpdateState.currentStep !== 'idle' ? backgroundUpdateState.currentStep : 'Aucune'}</p>
+              {backgroundUpdateState?.error ? (
+                <p className="text-[#fca5a5] mt-1">Erreur: {backgroundUpdateState.error}</p>
+              ) : null}
             </div>
           </div>
         )}

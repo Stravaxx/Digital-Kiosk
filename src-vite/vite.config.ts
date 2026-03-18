@@ -4,7 +4,7 @@ import fs from 'fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
-const packageJsonPath = path.resolve(__dirname, 'package.json')
+const packageJsonPath = path.resolve(__dirname, '../package.json')
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
   version?: string
   dependencies?: Record<string, string>
