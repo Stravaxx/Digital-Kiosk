@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - release
   workflow_dispatch:
     inputs:
       release_tag:
@@ -36,12 +36,10 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG="${{ github.event.inputs.release_tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_NAME}"
           else
-            if [ -n "${GITHUB_REF_NAME}" ]; then
-              TAG="${GITHUB_REF_NAME}"
-            else
-              TAG="v$(node -p \"require('./package.json').version\")"
-            fi
+            TAG="v$(node -p \"require('./package.json').version\")"
           fi
 
           if [ -z "$TAG" ]; then
@@ -51,8 +49,8 @@ jobs:
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create tag on manual run (if missing)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create tag on release branch/manual run (if missing)
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/release'
         shell: bash
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
@@ -60,6 +58,8 @@ jobs:
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Le tag $TAG existe déjà."
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag "$TAG"
             git push origin "$TAG"
           fi

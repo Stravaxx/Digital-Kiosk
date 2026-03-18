@@ -32,3 +32,27 @@ jobs:
 
       - name: Run tests
         run: npm test --if-present
+
+  ensure-release-branch:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure release branch exists
+        shell: bash
+        run: |
+          git fetch origin release || true
+          if git ls-remote --exit-code --heads origin release >/dev/null 2>&1; then
+            echo "La branche release existe déjà."
+          else
+            echo "Création de la branche release depuis ${GITHUB_REF_NAME}."
+            git checkout -b release
+            git push origin release
+          fi
