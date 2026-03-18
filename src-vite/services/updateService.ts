@@ -26,6 +26,9 @@ export interface BackgroundUpdateState {
   error: string | null;
   backupPath: string | null;
   backupDateTime: string | null;
+  sourceType?: 'release' | 'branch' | null;
+  sourceRef?: string | null;
+  targetVersion?: string | null;
   steps?: Record<string, { order: number; label: string; weight: number }>;
 }
 
@@ -94,6 +97,9 @@ export async function executeBackgroundUpdate(): Promise<BackgroundUpdateState> 
     error: typeof payload?.state?.error === 'string' ? payload.state.error : null,
     backupPath: typeof payload?.state?.backupPath === 'string' ? payload.state.backupPath : null,
     backupDateTime: typeof payload?.state?.backupDateTime === 'string' ? payload.state.backupDateTime : null,
+    sourceType: payload?.state?.sourceType === 'release' || payload?.state?.sourceType === 'branch' ? payload.state.sourceType : null,
+    sourceRef: typeof payload?.state?.sourceRef === 'string' ? payload.state.sourceRef : null,
+    targetVersion: typeof payload?.state?.targetVersion === 'string' ? payload.state.targetVersion : null,
     steps: payload?.state?.steps && typeof payload.state.steps === 'object' ? payload.state.steps : undefined
   };
 }
@@ -112,6 +118,9 @@ export async function getBackgroundUpdateState(): Promise<BackgroundUpdateState>
     error: typeof payload?.error === 'string' ? payload.error : null,
     backupPath: typeof payload?.backupPath === 'string' ? payload.backupPath : null,
     backupDateTime: typeof payload?.backupDateTime === 'string' ? payload.backupDateTime : null,
+    sourceType: payload?.sourceType === 'release' || payload?.sourceType === 'branch' ? payload.sourceType : null,
+    sourceRef: typeof payload?.sourceRef === 'string' ? payload.sourceRef : null,
+    targetVersion: typeof payload?.targetVersion === 'string' ? payload.targetVersion : null,
     steps: payload?.steps && typeof payload.steps === 'object' ? payload.steps : undefined
   };
 }

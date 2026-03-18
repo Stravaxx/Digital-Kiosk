@@ -11,6 +11,9 @@ const BASE_DIR = path.resolve(__dirname, '..');
 const DB_PATH = path.join(BASE_DIR, 'database', 'system.db');
 const BACKUP_DIR = path.join(BASE_DIR, 'database', 'backups');
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
+const UPDATE_RELEASE_REPO = process.env.UPDATE_RELEASE_REPO || 'Stravaxx/Digital-Kiosk';
+const UPDATE_RELEASE_BRANCH = process.env.UPDATE_RELEASE_BRANCH || 'release';
+const UPDATE_RELEASE_API = `https://api.github.com/repos/${UPDATE_RELEASE_REPO}/releases/latest`;
 
 // Ensure backup directory exists
 if (!fs.existsSync(BACKUP_DIR)) {
@@ -30,16 +33,20 @@ let updateState = {
   backupDateTime: null,
   startedAt: null,
   completedAt: null,
+  sourceType: null,
+  sourceRef: null,
+  targetVersion: null,
 };
 
 const steps = {
   BACKUP_DB: { order: 1, label: 'Sauvegarde de la base de données', weight: 15 },
   BACKUP_STORAGE: { order: 2, label: 'Sauvegarde des fichiers', weight: 15 },
-  NPM_INSTALL: { order: 3, label: 'Installation des dépendances', weight: 35 },
-  BUILD: { order: 4, label: 'Compilation du projet', weight: 25 },
-  RESTORE_DB: { order: 5, label: 'Restauration de la base', weight: 5 },
-  RESTORE_STORAGE: { order: 6, label: 'Restauration des fichiers', weight: 5 },
-  RELOAD: { order: 7, label: 'Rechargement du système', weight: 5 },
+  FETCH_SOURCE: { order: 3, label: 'Récupération des fichiers GitHub', weight: 20 },
+  NPM_INSTALL: { order: 4, label: 'Installation des dépendances', weight: 25 },
+  BUILD: { order: 5, label: 'Compilation du projet', weight: 20 },
+  RESTORE_DB: { order: 6, label: 'Restauration de la base', weight: 5 },
+  RESTORE_STORAGE: { order: 7, label: 'Restauration des fichiers', weight: 5 },
+  RELOAD: { order: 8, label: 'Rechargement du système', weight: 10 },
 };
 
 function createDefaultState() {
@@ -53,7 +60,86 @@ function createDefaultState() {
     backupDateTime: null,
     startedAt: null,
     completedAt: null,
+    sourceType: null,
+    sourceRef: null,
+    targetVersion: null,
   };
+}
+
+function normalizeVersionTag(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^v/i.test(raw)) {
+    return `v${raw.slice(1)}`;
+  }
+  return `v${raw}`;
+}
+
+function executeShell(command) {
+  return execSync(command, {
+    cwd: BASE_DIR,
+    stdio: 'pipe',
+    timeout: 600000,
+    encoding: 'utf-8'
+  });
+}
+
+async function fetchLatestReleaseTagFromGithub() {
+  try {
+    const response = await fetch(UPDATE_RELEASE_API, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'digital-kiosk-updater'
+      },
+      cache: 'no-store'
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const tag = normalizeVersionTag(payload?.tag_name);
+    return tag || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSourceFromGithub(runContext) {
+  try {
+    setStep('FETCH_SOURCE', runContext);
+
+    const latestReleaseTag = await fetchLatestReleaseTagFromGithub();
+
+    executeShell('git rev-parse --is-inside-work-tree');
+    executeShell(`git fetch --prune --tags origin ${UPDATE_RELEASE_BRANCH}`);
+
+    if (latestReleaseTag) {
+      executeShell(`git checkout -f tags/${latestReleaseTag}`);
+      updateState.sourceType = 'release';
+      updateState.sourceRef = latestReleaseTag;
+      updateState.targetVersion = latestReleaseTag;
+      console.log(`✅ Source GitHub récupérée depuis release ${latestReleaseTag}`);
+    } else {
+      executeShell(`git checkout -B ${UPDATE_RELEASE_BRANCH} origin/${UPDATE_RELEASE_BRANCH}`);
+      executeShell(`git reset --hard origin/${UPDATE_RELEASE_BRANCH}`);
+      updateState.sourceType = 'branch';
+      updateState.sourceRef = UPDATE_RELEASE_BRANCH;
+      updateState.targetVersion = null;
+      console.log(`✅ Source GitHub récupérée depuis branche ${UPDATE_RELEASE_BRANCH}`);
+    }
+
+    completeStep(runContext);
+    emitState(runContext);
+  } catch (error) {
+    setStep('FETCH_SOURCE', runContext, `Erreur récupération GitHub: ${error.message}`);
+    throw error;
+  }
 }
 
 function copyDirectoryRecursive(sourceDir, destinationDir) {
@@ -299,6 +385,9 @@ async function runUpdate(options = {}) {
   updateState.timestamp = new Date();
   updateState.startedAt = updateState.timestamp;
   updateState.completedAt = null;
+  updateState.sourceType = null;
+  updateState.sourceRef = null;
+  updateState.targetVersion = null;
   emitState(runContext);
 
   let backupPath = null;
@@ -308,6 +397,7 @@ async function runUpdate(options = {}) {
     backupPath = await backupSystem(runContext);
 
     // Update
+    await fetchSourceFromGithub(runContext);
     npmInstall(runContext);
     buildProject(runContext);
 

@@ -51,6 +51,12 @@ export function Settings() {
     String(localStorage.getItem(UPDATE_LAST_NOTIFIED_TAG_KEY) || '').trim()
   );
 
+  const formatVersionLabel = (value: string | null | undefined) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '—';
+    return raw.toLowerCase().startsWith('v') ? `V${raw.slice(1)}` : `V${raw}`;
+  };
+
   useEffect(() => {
     void syncSystemSettingsFromDb().then(setSettings).catch(() => setSettings(DEFAULT_SYSTEM_SETTINGS));
   }, []);
@@ -454,11 +460,11 @@ export function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
               <p className="text-[#9ca3af]">Version actuelle</p>
-              <p className="text-[#e5e7eb]">{updateStatus?.currentVersion || '—'}</p>
+              <p className="text-[#e5e7eb]">{formatVersionLabel(updateStatus?.currentVersion)}</p>
             </div>
             <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
               <p className="text-[#9ca3af]">Dernière release</p>
-              <p className="text-[#e5e7eb]">{updateStatus?.latestTag || '—'}</p>
+              <p className="text-[#e5e7eb]">{formatVersionLabel(updateStatus?.latestTag)}</p>
             </div>
             <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)]">
               <p className="text-[#9ca3af]">Dernier check</p>
@@ -480,6 +486,13 @@ export function Settings() {
             <div className="p-3 rounded-[12px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] md:col-span-2">
               <p className="text-[#9ca3af]">Étape en cours</p>
               <p className="text-[#e5e7eb]">{backgroundUpdateState?.currentStep && backgroundUpdateState.currentStep !== 'idle' ? backgroundUpdateState.currentStep : 'Aucune'}</p>
+              <p className="text-[#9ca3af] mt-1">
+                Source: {backgroundUpdateState?.sourceType === 'release'
+                  ? `Release GitHub (${formatVersionLabel(backgroundUpdateState?.targetVersion || backgroundUpdateState?.sourceRef)})`
+                  : backgroundUpdateState?.sourceType === 'branch'
+                    ? `Branche GitHub (${String(backgroundUpdateState?.sourceRef || 'release')})`
+                    : '—'}
+              </p>
               {backgroundUpdateState?.error ? (
                 <p className="text-[#fca5a5] mt-1">Erreur: {backgroundUpdateState.error}</p>
               ) : null}
