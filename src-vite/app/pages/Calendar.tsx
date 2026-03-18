@@ -708,13 +708,13 @@ export function Calendar() {
           </div>
 
           <div>
-            <p className="block text-[#e5e7eb] mb-2">Période A → B (DD/MM/YYYY)</p>
+            <p className="block text-[#e5e7eb] mb-2">Date</p>
             {timelineBounds && selectedRangeMs ? (
               <>
                 <div>
                   <div className="flex items-center justify-between text-xs text-[#9ca3af] mb-2">
-                    <label htmlFor="calendar-range-start">Point A</label>
-                    <label htmlFor="calendar-range-end">Point B</label>
+                    <label htmlFor="calendar-range-start">Date la plus éloignée</label>
+                    <label htmlFor="calendar-range-end">Date la plus proche</label>
                   </div>
 
                   <div className="calendar-range-wrapper">
