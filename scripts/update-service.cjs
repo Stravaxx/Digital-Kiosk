@@ -276,11 +276,7 @@ function npmInstall(runContext) {
     setStep('NPM_INSTALL', runContext);
     console.log('Running npm install...');
 
-    execSync('npm install', {
-      cwd: BASE_DIR,
-      stdio: 'inherit',
-      timeout: 600000, // 10 minutes
-    });
+    executeShell('npm install');
 
     console.log('✅ npm install completed');
     completeStep(runContext);
@@ -298,11 +294,7 @@ function buildProject(runContext) {
     setStep('BUILD', runContext);
     console.log('Running npm run build...');
 
-    execSync('npm run build', {
-      cwd: BASE_DIR,
-      stdio: 'inherit',
-      timeout: 600000, // 10 minutes
-    });
+    executeShell('npm run build');
 
     console.log('✅ Build completed');
     completeStep(runContext);
@@ -453,5 +445,6 @@ module.exports = {
   runUpdate,
   getUpdateState,
   resetUpdateState,
+  createDefaultState,
   steps,
 };

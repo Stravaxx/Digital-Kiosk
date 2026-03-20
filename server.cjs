@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { WebSocketServer } = require('ws');
 let BetterSqlite3 = null;
 try {
@@ -40,6 +40,7 @@ const DB_BACKUP_PATH = path.join(DB_DIR, 'system-db.backup.json');
 const DB_TEMP_PATH = path.join(DB_DIR, 'system-db.tmp.json');
 const LEGACY_DB_PATH = path.join(DB_DIR, 'db.json');
 const SQLITE_DB_PATH = path.join(DB_DIR, 'system.db');
+const UPDATE_STATE_FILE = path.join(DB_DIR, 'update-runtime-state.json');
 const SCREENS_KV_KEY = 'ds.screens';
 const LAYOUTS_KV_KEY = 'ds.layouts';
 const PLAYER_PAIRINGS_KV_KEY = 'ds.player-pairings';
@@ -112,6 +113,83 @@ const DEFAULT_EMPTY_ARRAY_KEYS = new Set([
   PLAYLISTS_KV_KEY,
   LOGS_KV_KEY
 ]);
+
+function toIsoLike(value) {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toISOString();
+  }
+  return null;
+}
+
+function normalizeExternalUpdateState(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  return {
+    isRunning: Boolean(payload.isRunning),
+    currentStep: typeof payload.currentStep === 'string' ? payload.currentStep : 'idle',
+    progress: Number(payload.progress || 0),
+    timestamp: toIsoLike(payload.timestamp),
+    error: typeof payload.error === 'string' ? payload.error : null,
+    backupPath: typeof payload.backupPath === 'string' ? payload.backupPath : null,
+    backupDateTime: toIsoLike(payload.backupDateTime),
+    startedAt: toIsoLike(payload.startedAt),
+    completedAt: toIsoLike(payload.completedAt),
+    sourceType: payload.sourceType === 'release' || payload.sourceType === 'branch' ? payload.sourceType : null,
+    sourceRef: typeof payload.sourceRef === 'string' ? payload.sourceRef : null,
+    targetVersion: typeof payload.targetVersion === 'string' ? payload.targetVersion : null,
+    requiresRestart: Boolean(payload.requiresRestart),
+    workerStatus: typeof payload.workerStatus === 'string' ? payload.workerStatus : null,
+    workerPid: Number.isFinite(Number(payload.workerPid)) ? Number(payload.workerPid) : null,
+    reloadRequestedAt: toIsoLike(payload.reloadRequestedAt)
+  };
+}
+
+function readExternalUpdateState() {
+  try {
+    if (!fs.existsSync(UPDATE_STATE_FILE)) {
+      return null;
+    }
+    const raw = fs.readFileSync(UPDATE_STATE_FILE, 'utf-8');
+    if (!raw || !raw.trim()) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    return normalizeExternalUpdateState(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function persistExternalUpdateState(state) {
+  try {
+    const dir = path.dirname(UPDATE_STATE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(UPDATE_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch {
+    // ignore state persistence errors
+  }
+}
+
+function getEffectiveUpdateState() {
+  const inMemoryState = updateService.getUpdateState();
+  const externalState = readExternalUpdateState();
+  if (!externalState) {
+    return inMemoryState;
+  }
+
+  return {
+    ...inMemoryState,
+    ...externalState,
+    steps: inMemoryState.steps || updateService.steps || {}
+  };
+}
 
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -2736,7 +2814,7 @@ app.post('/api/system/update/apply', async (req, res) => {
 
 // Background update service endpoints
 app.get('/api/system/update/state', async (_req, res) => {
-  const state = updateService.getUpdateState();
+  const state = getEffectiveUpdateState();
   return res.json({ ok: true, ...state });
 });
 
@@ -2748,7 +2826,7 @@ app.post('/api/system/update/execute', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 
-    const state = updateService.getUpdateState();
+    const state = getEffectiveUpdateState();
     if (state.isRunning) {
       return res.status(409).json({
         ok: false,
@@ -2757,37 +2835,42 @@ app.post('/api/system/update/execute', async (req, res) => {
       });
     }
 
-    // Start update in background (non-blocking)
-    res.json({ ok: true, message: 'Mise à jour démarrée en arrière-plan', state: updateService.getUpdateState() });
+    const queuedState = {
+      ...updateService.createDefaultState(),
+      isRunning: true,
+      currentStep: 'queued',
+      progress: 0,
+      error: null,
+      timestamp: nowIso(),
+      startedAt: nowIso(),
+      completedAt: null,
+      workerStatus: 'queued',
+      requiresRestart: false
+    };
 
-    // Run update asynchronously
-    updateService.runUpdate({
-      onStateChange: () => {
-        if (global.systemWss) {
-          broadcastUpdateStatus(global.systemWss);
-        }
-      },
-      onReloadRequested: async () => {
-        const queuedReload = await queueReloadCommandForAllScreens().catch(() => ({ queuedCount: 0 }));
-        if (global.systemWss) {
-          broadcastUpdateReload(global.systemWss, {
-            scope: 'all',
-            reason: 'system-update-complete',
-            queuedScreens: Number(queuedReload?.queuedCount || 0),
-            at: nowIso()
-          });
-        }
+    persistExternalUpdateState(queuedState);
+
+    const workerPath = path.join(ROOT, 'scripts', 'update-worker.cjs');
+    const child = spawn(process.execPath, [workerPath], {
+      cwd: ROOT,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: {
+        ...process.env,
+        UPDATE_STATE_FILE
       }
-    }).then((result) => {
-      console.log('Background update completed:', result);
-      // Broadcast to WebSocket clients that update is done
-      if (global.systemWss) {
-        broadcastUpdateStatus(global.systemWss);
-      }
-    }).catch((error) => {
-      console.error('Background update error:', error);
-      if (global.systemWss) {
-        broadcastUpdateStatus(global.systemWss);
+    });
+    child.unref();
+
+    return res.json({
+      ok: true,
+      message: 'Mise à jour démarrée en processus détaché. Suivi disponible sur /updater.',
+      monitorPath: '/updater',
+      state: {
+        ...queuedState,
+        workerPid: child.pid,
+        steps: updateService.steps || {}
       }
     });
   } catch (error) {

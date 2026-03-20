@@ -174,6 +174,7 @@ export function Settings() {
       if (next) {
         setUpdateStatus(next);
       }
+      window.location.assign('/updater');
     } catch (error) {
       setUpdatesError(String((error as Error)?.message || 'Application de la mise à jour impossible.'));
     } finally {

@@ -20,6 +20,7 @@ import { Ops } from './pages/Ops';
 import { Player } from './pages/Player';
 import { Login } from './pages/Login';
 import { About } from './pages/About';
+import { Updater } from './pages/Updater';
 import { isAdminAuthenticated } from '../services/adminAuthService';
 import { hydrateManyKeysFromDb, requestPersistentSystemStorage, syncLocalStorageKeyFromSystem } from '../services/clientDbStorage';
 import { LAYOUTS_KEY } from '../shared/layoutRegistry';
@@ -187,6 +188,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/player" element={<Player />} />
+        <Route path="/updater" element={<Updater />} />
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Navigate to="/dashboard" />} />
           <Route path="/dashboard" element={<Dashboard />} />
