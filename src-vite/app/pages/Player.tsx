@@ -1599,7 +1599,7 @@ export function Player() {
                       <div>Emplacement</div>
                       <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>Date et heure de début</div>
                       <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>Date et heure de fin</div>
-                      <div>Status</div>
+                      <div>Statut</div>
                     </div>
                     <div
                       ref={boardScrollContainerRef}
