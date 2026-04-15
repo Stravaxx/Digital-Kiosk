@@ -61,6 +61,7 @@ const ALERTS_STATE_KV_KEY = 'ds.alerts.state';
 const DB_SCHEMA_VERSION = 2;
 const UPDATE_RELEASE_REPO = 'Stravaxx/Digital-Kiosk';
 const UPDATE_RELEASE_API = `https://api.github.com/repos/${UPDATE_RELEASE_REPO}/releases/latest`;
+const VITE_GITHUB_REPO = 'Stravaxx/Digital-Kiosk';
 const RELEASE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const COMMAND_SIGNATURE_SECRET = String(process.env.COMMAND_SIGNATURE_SECRET || 'ds-default-command-secret');
 const DEFAULT_STORAGE_POLICY = {

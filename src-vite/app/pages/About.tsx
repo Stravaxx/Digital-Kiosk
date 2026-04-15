@@ -12,7 +12,7 @@ interface GithubRepoStats {
 export function About() {
   const version = String(import.meta.env.VITE_APP_VERSION || '0.0.0');
   const buildDate = String(import.meta.env.VITE_BUILD_DATE || 'N/A');
-  const githubRepo = String(import.meta.env.VITE_GITHUB_REPO || '').trim();
+  const githubRepo = 'Stravaxx/Digital-Kiosk'.trim();
 
   const [stats, setStats] = React.useState<GithubRepoStats | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -67,9 +67,7 @@ export function About() {
       <GlassCard className="p-6 space-y-4">
         <h2 className="text-lg text-[#e5e7eb]">Description du projet</h2>
         <p className="text-[#cbd5e1] leading-relaxed">
-          Digital Kiosk est une plateforme web d’affichage dynamique permettant de gérer un parc d’écrans,
-          diffuser des playlists multimédia, piloter des layouts, superviser la flotte (fleet/alerts/ops)
-          et orchestrer le cycle complet de liaison player via PIN/QR.
+          Digital Kiosk est une plateforme web d’affichage dynamique permettant de gérer un parc d’écrans, diffuser des playlists multimédia et piloter des modeles d'affichages. Le projet est sous licence MIT et vise à offrir une solution flexible et personnalisable pour les besoins d’affichage en entreprise, retail, ou événementiel.
         </p>
       </GlassCard>
 
@@ -106,9 +104,6 @@ export function About() {
                   <div className="rounded-[10px] bg-[rgba(255,255,255,0.05)] p-3 text-[#e5e7eb] flex items-center gap-2"><AlertCircle size={14} className="text-[#fca5a5]" /> {stats.openIssues} issues</div>
                 </div>
               ) : null}
-              <p className="text-xs text-[#9ca3af]">
-                Vues GitHub: non disponibles en public sans token/endpoint trafic privé. Prévoir une extension backend si nécessaire.
-              </p>
             </>
           )}
         </GlassCard>
