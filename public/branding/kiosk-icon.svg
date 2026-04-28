@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Calque_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: url(#Dégradé_sans_nom_2);
+      }
+
+      .st1 {
+        fill: #cbd5e1;
+      }
+
+      .st2 {
+        fill: url(#Dégradé_sans_nom);
+      }
+
+      .st3 {
+        fill: #94a3b8;
+      }
+    </style>
+    <linearGradient id="Dégradé_sans_nom" data-name="Dégradé sans nom" x1="0" y1="0" x2="1" y2="1" gradientTransform="scale(256)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="Dégradé_sans_nom_2" data-name="Dégradé sans nom 2" x1="-.3" y1="-.29" x2="1.08" y2="1.09" gradientTransform="translate(48 56) scale(160 110)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect class="st2" width="256" height="256" rx="56" ry="56"/>
+  <rect class="st0" x="30.13" y="40.14" width="195.74" height="145.02" rx="20" ry="20"/>
+  <path class="st3" d="M120.13,189.01h16c3.31,0,6,2.69,6,6h0c0,3.31-2.69,6-6,6h-16c-3.31,0-6-2.69-6-6h0c0-3.31,2.69-6,6-6Z"/>
+  <path class="st1" d="M94.13,203.86h68c3.31,0,6,2.69,6,6h0c0,3.31-2.69,6-6,6h-68c-3.31,0-6-2.69-6-6h0c0-3.31,2.69-6,6-6Z"/>
+</svg>
