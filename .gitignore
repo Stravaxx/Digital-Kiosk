@@ -92,6 +92,8 @@ next.config.ts
 middleware.ts
 proxy.ts
 src/
+!electron/src/
+!electron/src/**
 .zenflow/
 .zencoder/
 docs-api/

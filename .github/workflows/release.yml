@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -91,16 +91,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Desktop and Player packages
-        run: |
-          npm run package:admin:win
-          npm run package:player:win
+      - name: Build Desktop package
+        run: npm run package:admin:win
+
+      - name: Build Player package
+        run: npm run package:player:win
 
       - name: Prepare renamed executables for release
         shell: pwsh
@@ -108,10 +109,23 @@ jobs:
           $Version = '${{ needs.prepare.outputs.version }}'
           New-Item -ItemType Directory -Path release-upload -Force | Out-Null
 
-          Copy-Item "release/admin/Digital-Kiosk-Desktop-Setup-$Version.exe" "release-upload/Digital-Kiosk-Desktop-Setup-v$Version.exe" -Force
-          Copy-Item "release/admin/Digital-Kiosk-Desktop-Portable-$Version.exe" "release-upload/Digital-Kiosk-Desktop-Portable-v$Version.exe" -Force
-          Copy-Item "release/player/Digital-Kiosk-Player-Setup-$Version.exe" "release-upload/Digital-Kiosk-Player-Setup-v$Version.exe" -Force
-          Copy-Item "release/player/Digital-Kiosk-Player-Portable-$Version.exe" "release-upload/Digital-Kiosk-Player-Portable-v$Version.exe" -Force
+          $artifacts = @(
+            @{ Source = "release/admin/Digital-Kiosk-Desktop-Setup-$Version.exe"; Target = "release-upload/Digital-Kiosk-Desktop-Setup-v$Version.exe" },
+            @{ Source = "release/admin/Digital-Kiosk-Desktop-Portable-$Version.exe"; Target = "release-upload/Digital-Kiosk-Desktop-Portable-v$Version.exe" },
+            @{ Source = "release/player/Digital-Kiosk-Player-Setup-$Version.exe"; Target = "release-upload/Digital-Kiosk-Player-Setup-v$Version.exe" },
+            @{ Source = "release/player/Digital-Kiosk-Player-Portable-$Version.exe"; Target = "release-upload/Digital-Kiosk-Player-Portable-v$Version.exe" }
+          )
+
+          foreach ($artifact in $artifacts) {
+            if (Test-Path $artifact.Source) {
+              Copy-Item $artifact.Source $artifact.Target -Force
+            }
+          }
+
+          $copied = Get-ChildItem -Path release-upload -Filter *.exe -ErrorAction SilentlyContinue
+          if (-not $copied) {
+            throw 'Aucun exécutable Windows n a été généré pour la release.'
+          }
 
       - name: Upload Windows executables artifact
         uses: actions/upload-artifact@v4

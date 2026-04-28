@@ -1,0 +1,18 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+.window-titlebar {
+	-webkit-app-region: drag;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.window-titlebar .window-no-drag,
+.window-titlebar button,
+.window-titlebar a,
+.window-titlebar input,
+.window-titlebar select,
+.window-titlebar textarea {
+	-webkit-app-region: no-drag;
+}
