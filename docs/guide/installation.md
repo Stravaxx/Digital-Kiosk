@@ -1,60 +1,92 @@
 # Installation
 
-## Prérequis
+## FR
 
-- Node.js 20+
-- npm 10+
-- Git (recommandé)
+### Prérequis
 
-## Développement
+- Node.js 20 ou supérieur
+- npm 10 ou supérieur
+- Git recommandé
+- Windows 10/11 si vous ciblez les builds Electron Windows
+
+### Installation locale
 
 ```bash
 npm install
+```
+
+### Démarrage web
+
+```bash
 npm run dev
 ```
 
-Cette commande démarre le système complet en local:
+Ce mode lance:
 
-- API
-- Frontend admin
-- Player (route `/player`)
-- Documentation complète + API docs
+- l’API locale sur `http://127.0.0.1:8787`,
+- le panel admin Vite sur `http://127.0.0.1:4173`,
+- le player web sur `http://127.0.0.1:4173/player?instance=1`.
 
-## Build application
+### Démarrage Electron admin
 
 ```bash
-npm run build
+npm run desktop
 ```
 
-## Production complète
+Pour un flux local avec build du panel Electron:
 
 ```bash
-npm run prod
+npm run desktop:win
 ```
 
-Cette commande initialise aussi la documentation automatiquement.
-
-## Alias tout-en-un
+### Démarrage Electron player
 
 ```bash
-npm run dev:all
-npm run prod:all
+npm run desktop:player
 ```
 
-## Générer la documentation complète
+### Packaging Windows
 
 ```bash
+npm run package:admin:win
+npm run package:player:win
+```
+
+### Documentation
+
+```bash
+npm run docs:dev
 npm run docs:build
-```
-
-## Prévisualiser la documentation
-
-```bash
-npm run docs:preview
-```
-
-## Documentation API seule
-
-```bash
 npm run docs:api
 ```
+
+## EN
+
+### Prerequisites
+
+- Node.js 20+
+- npm 10+
+- Git recommended
+- Windows 10/11 if you target Windows Electron packages
+
+### Local install
+
+```bash
+npm install
+```
+
+### Web runtime
+
+```bash
+npm run dev
+```
+
+This starts:
+
+- the local API on `http://127.0.0.1:8787`,
+- the Vite admin panel on `http://127.0.0.1:4173`,
+- the web player on `http://127.0.0.1:4173/player?instance=1`.
+
+### Windows packaging
+
+Use `npm run package:admin:win` for the all-in-one admin desktop build and `npm run package:player:win` for the dedicated fullscreen player app.

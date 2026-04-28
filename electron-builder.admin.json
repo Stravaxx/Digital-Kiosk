@@ -1,0 +1,46 @@
+{
+  "appId": "com.stravaxx.digitalkiosk.desktop",
+  "productName": "Digital Kiosk Desktop",
+  "directories": {
+    "output": "release/admin",
+    "buildResources": "public/branding"
+  },
+  "files": [
+    "electron/main.cjs",
+    "electron/preload.cjs",
+    "electron/preload-player.cjs",
+    "electron/dist/**",
+    "public/branding/**",
+    "public/brandiing/**",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "electron/app-bundle",
+      "to": "app-bundle",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "asar": true,
+  "win": {
+    "icon": "public/branding/kiosk-icon.ico",
+    "target": [
+      "nsis",
+      "portable"
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Digital Kiosk Desktop",
+    "artifactName": "Digital-Kiosk-Desktop-Setup-${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "Digital-Kiosk-Desktop-Portable-${version}.${ext}"
+  }
+}

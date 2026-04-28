@@ -6,7 +6,8 @@ function parseArgs(argv) {
   const options = {
     input: 'CHANGELOG.md',
     output: 'RELEASE_NOTES.md',
-    version: ''
+    version: '',
+    latest: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -24,10 +25,33 @@ function parseArgs(argv) {
     if (token === '--version') {
       options.version = String(argv[index + 1] || '').trim();
       index += 1;
+      continue;
+    }
+    if (token === '--latest') {
+      options.latest = true;
     }
   }
 
   return options;
+}
+
+function extractLatestSection(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const startIndex = lines.findIndex((line) => /^##\s+/.test(line.trim()));
+
+  if (startIndex === -1) {
+    throw new Error('Aucune section de version trouvée dans le changelog.');
+  }
+
+  let endIndex = lines.length;
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    if (/^##\s+/.test(lines[index])) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  return lines.slice(startIndex, endIndex).join('\n').trim() + '\n';
 }
 
 function normalizeVersion(version) {
@@ -71,7 +95,9 @@ function main() {
   const inputPath = path.resolve(process.cwd(), options.input);
   const outputPath = path.resolve(process.cwd(), options.output);
   const markdown = fs.readFileSync(inputPath, 'utf-8');
-  const notes = extractSection(markdown, options.version);
+  const notes = options.latest
+    ? extractLatestSection(markdown)
+    : extractSection(markdown, options.version);
   fs.writeFileSync(outputPath, `${notes}`, 'utf-8');
   process.stdout.write(`Release notes générées: ${outputPath}\n`);
 }

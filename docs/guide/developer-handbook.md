@@ -1,138 +1,77 @@
-# Guide développeur
+# Developer Handbook
 
-## Objectif
+## FR
 
-Ce guide sert de référence technique pour développer et maintenir l’application.
+### Périmètre technique
 
-## Stack technique
+Le repo contient aujourd’hui:
 
-- Frontend: React + TypeScript + Vite
-- Backend: Node.js + Express (`server.cjs`)
-- Stockage principal: SQLite (`database/system.db`)
-- Export compatibilité: JSON (`database/system-db.json`)
+- panel web admin React + Vite,
+- player web,
+- backend Express + SQLite,
+- shell Electron admin avec bundle serveur embarqué,
+- app Electron player Windows fullscreen,
+- manager Flutter multi-plateforme,
+- agent natif C++.
 
-## Démarrage dev
+### Commandes de base
 
 ```bash
 npm install
 npm run dev
+npm run build
+npm run desktop
+npm run desktop:player
+npm run package:admin:win
+npm run package:player:win
 ```
 
-Services attendus:
+### Architecture backend
 
-- API: `http://127.0.0.1:8787`
-- Panel: `http://127.0.0.1:4173`
+Domaines principaux:
 
-## Structure du projet
+- Auth et permissions: `/api/auth/*`
+- Mobile connect: `/api/mobile/connect/*`
+- Contenu: `/api/assets`, `/api/playlists`, `/api/layouts`, `/api/meetings`
+- Player et écrans: `/api/player/*`, `/api/screens/*`
+- Monitoring et exploitation: `/api/monitoring/*`, `/api/alerts/*`, `/api/ops/*`, `/api/audit`
+- Système: `/api/system/*`, `/api/storage/*`, `/api/logs`
 
-- `src/app/**`: interfaces admin
-- `src/app/pages/Player.tsx`: runtime d’affichage player
-- `src/services/**`: services métier front
-- `server.cjs`: API backend + règles d’accès + persistance
-- `docs/**`: documentation fonctionnelle/technique
-- `tests/**`: tests unitaires/intégration
+### Architecture Electron
 
-## Conventions de code
+Admin desktop:
 
-- Corriger la cause racine avant les symptômes.
-- Préserver les API publiques existantes.
-- Ajouter des commentaires orientés intention (le « pourquoi »).
-- Éviter les commentaires triviaux (le « quoi » évident).
+- point d’entrée: `electron/main.cjs`,
+- renderer dédié: `electron/dist/`,
+- preload admin: `electron/preload.cjs`,
+- preload player: `electron/preload-player.cjs`,
+- bundle serveur embarqué: `electron/app-bundle/` généré par `scripts/prepare-electron-bundle.cjs`.
 
-### Commentaires recommandés
+Player desktop:
 
-- sections critiques de sécurité (auth/session/token),
-- moteurs d’animation et scheduling,
-- fallback offline et gestion d’état distribué,
-- conversions de données potentiellement ambiguës.
+- point d’entrée: `electron/player-main.cjs`,
+- fenêtre Electron fullscreen,
+- stockage identité player dans le dossier utilisateur.
 
-## Workflow recommandé
-
-1. Créer une branche de travail.
-2. Implémenter un changement minimal et ciblé.
-3. Vérifier compilation (`npm run build`).
-4. Vérifier comportement fonctionnel (écran admin + player).
-5. Mettre à jour la documentation associée.
-
-## Variables d’environnement
-
-Exemples fréquents:
-
-- `VITE_ADMIN_API_BASE`
-- `API_ONLY`
-- `PORT`
-- `SYSTEM_DB_DIR`
-- `SYSTEM_STORAGE_DIR`
-- `IFRAME_DOMAIN_WHITELIST`
-
-## Développement API
-
-Le backend est organisé par domaines:
-
-- auth/session,
-- contenu (layouts/playlists/assets),
-- player/screens,
-- monitoring/alerts/ops,
-- storage/system.
-
-Bonnes pratiques:
-
-- valider toutes les entrées (`req.body`, `req.params`, `req.query`),
-- renvoyer des erreurs explicites et stables,
-- journaliser les actions sensibles,
-- conserver la compatibilité avec le player déployé.
-
-## Développement player
-
-Points critiques:
-
-- robustesse offline (fallback last-known-good),
-- rendu déterministe des layouts,
-- auto-scroll/animations fluides (`requestAnimationFrame`),
-- reprise propre après changement de données.
-
-## Tests et validation
-
-Commandes utiles:
+### Validation conseillée
 
 ```bash
-npm run test
 npm run build
+npm run test
 npm run docs:build
+node --check electron/main.cjs
+node --check electron/player-main.cjs
 ```
 
-Avant merge:
+### Avant merge
 
-- vérifier au moins un scénario pairing complet,
-- vérifier un scénario player offline,
-- vérifier une commande écran (refresh/reload/reboot).
+- Vérifier les flows web et Electron impactés.
+- Vérifier le pairing player et la restauration du token.
+- Vérifier le packaging `--dir` ou le package Windows ciblé si la modification touche Electron.
+- Maintenir le README, le changelog et les guides synchronisés.
 
-## Erreurs fréquentes côté dev
+## EN
 
-### `401 missing token`
+The repository now spans web, Electron, Flutter and C++ surfaces. If you change Electron, validate both the admin shell and the dedicated player shell. If you change player identity or pairing, validate the token restore path and the PIN workflow.
 
-Cause: route protégée appelée sans session admin.
-
-### `401 session expired`
-
-Cause: timeout d’inactivité session admin.
-
-### `410` sur routes screens legacy
-
-Cause: endpoints conservés pour compat mais fonction retirée (découverte réseau).
-
-### Build OK mais comportement runtime incorrect
-
-Vérifier:
-
-- mode server (`API_ONLY`, `SERVER_MODE`),
-- données persistées (`database/system.db`),
-- cohérence `layout`/`playlist`/`assets`.
-
-## Maintenance documentation
-
-À chaque évolution fonctionnelle:
-
-1. mettre à jour `docs/reference/api.md` pour tout changement d’endpoint,
-2. mettre à jour le guide utilisateur si le parcours change,
-3. ajouter au dépannage (`docs/guide/troubleshooting.md`) les nouvelles erreurs connues.
+Whenever endpoints or runtime flows change, update the main guides and the API reference in the same branch.

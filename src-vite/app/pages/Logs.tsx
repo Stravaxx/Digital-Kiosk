@@ -10,6 +10,7 @@ import {
   type SystemLogRecord,
   type SystemLogType
 } from '../../services/logService';
+import { useTranslation } from '../i18n';
 
 const TYPE_FILTERS: Array<SystemLogType | 'all'> = ['all', 'screen', 'error', 'upload', 'sync', 'auth', 'player', 'system'];
 const LEVEL_FILTERS: Array<SystemLogLevel | 'all'> = ['all', 'info', 'warning', 'error'];
@@ -27,6 +28,7 @@ function getLevelIcon(level: SystemLogLevel) {
 }
 
 export function Logs() {
+  const { t } = useTranslation();
   const [filterType, setFilterType] = useState<SystemLogType | 'all'>('all');
   const [filterLevel, setFilterLevel] = useState<SystemLogLevel | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -88,7 +90,7 @@ export function Logs() {
   };
 
   const onClear = async () => {
-    const confirmed = window.confirm('Supprimer tous les logs visibles avec le filtre actif ?');
+    const confirmed = window.confirm(t('logs.confirmClear'));
     if (!confirmed) return;
     setLoading(true);
     try {
@@ -104,36 +106,36 @@ export function Logs() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">System Logs</h1>
-          <p className="text-[#9ca3af]">Monitor system activity and errors</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('logs.title')}</h1>
+          <p className="text-[#9ca3af]">{t('logs.subtitle')}</p>
         </div>
         <div className="flex gap-3">
           <GlassButton variant="ghost" onClick={loadLogs}>
             <RefreshCw size={20} className="inline mr-2" />
-            Refresh
+            {t('common.refresh')}
           </GlassButton>
           <GlassButton variant="ghost" onClick={onExport} disabled={rows.length === 0}>
             <Download size={20} className="inline mr-2" />
-            Export Logs
+            {t('logs.export')}
           </GlassButton>
           <GlassButton variant="danger" onClick={onClear} disabled={rows.length === 0 || loading}>
             <Trash2 size={20} className="inline mr-2" />
-            Clear Logs
+            {t('logs.clear')}
           </GlassButton>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GlassCard className="p-4">
-          <p className="text-[#9ca3af] text-sm">Infos</p>
+          <p className="text-[#9ca3af] text-sm">{t('logs.info')}</p>
           <p className="text-2xl text-[#86efac] mt-1">{counts.info}</p>
         </GlassCard>
         <GlassCard className="p-4">
-          <p className="text-[#9ca3af] text-sm">Warnings</p>
+          <p className="text-[#9ca3af] text-sm">{t('logs.warnings')}</p>
           <p className="text-2xl text-[#fcd34d] mt-1">{counts.warning}</p>
         </GlassCard>
         <GlassCard className="p-4">
-          <p className="text-[#9ca3af] text-sm">Errors</p>
+          <p className="text-[#9ca3af] text-sm">{t('logs.errors')}</p>
           <p className="text-2xl text-[#fca5a5] mt-1">{counts.error}</p>
         </GlassCard>
       </div>
@@ -179,21 +181,21 @@ export function Logs() {
                 void loadLogs();
               }
             }}
-            placeholder="Rechercher dans les logs"
+            placeholder={t('logs.searchPlaceholder')}
             className="min-w-[260px] flex-1 bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[12px] px-3 py-2 text-[#e5e7eb]"
           />
-          <GlassButton size="sm" onClick={loadLogs}>Appliquer</GlassButton>
+          <GlassButton size="sm" onClick={loadLogs}>{t('common.apply')}</GlassButton>
           <select
             value={String(refreshMs)}
             onChange={(event) => setRefreshMs(Number.parseInt(event.target.value, 10) || 0)}
             className="bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[10px] px-3 py-2 text-[#e5e7eb]"
-            aria-label="Auto-refresh logs"
-            title="Auto-refresh logs"
+            aria-label={t('logs.autoRefresh')}
+            title={t('logs.autoRefresh')}
           >
-            <option value="0">Pause</option>
-            <option value="5000">Auto 5s</option>
-            <option value="10000">Auto 10s</option>
-            <option value="30000">Auto 30s</option>
+            <option value="0">{t('logs.pause')}</option>
+            <option value="5000">{t('logs.auto5s')}</option>
+            <option value="10000">{t('logs.auto10s')}</option>
+            <option value="30000">{t('logs.auto30s')}</option>
           </select>
         </div>
 
@@ -202,12 +204,12 @@ export function Logs() {
         {rows.length === 0 && !loading ? (
           <div className="text-center py-20">
             <FileText size={64} className="mx-auto text-[#9ca3af] opacity-50 mb-4" />
-            <h3 className="text-lg text-[#e5e7eb] mb-2">No logs available</h3>
-            <p className="text-[#9ca3af]">System activity will appear here</p>
+            <h3 className="text-lg text-[#e5e7eb] mb-2">{t('logs.empty')}</h3>
+            <p className="text-[#9ca3af]">{t('logs.emptyHint')}</p>
           </div>
         ) : null}
 
-        {loading ? <p className="text-[#9ca3af] py-4">Chargement des logs...</p> : null}
+        {loading ? <p className="text-[#9ca3af] py-4">{t('logs.loading')}</p> : null}
 
         {rows.length > 0 ? (
           <div className="space-y-3 max-h-[62vh] overflow-y-auto pr-1">

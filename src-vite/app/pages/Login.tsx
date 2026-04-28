@@ -4,13 +4,27 @@ import { GlassCard } from '../components/GlassCard';
 import { GlassButton } from '../components/GlassButton';
 import { adoptAdminToken, bootstrapAdminAccount, consumeLastAuthError, getAdminAuthStatus, getAdminToken, isAdminAuthenticated, loginAdmin, verifyCurrentAdminConnection } from '../../services/adminAuthService';
 import { appendSystemLog } from '../../services/logService';
+import { useTranslation } from '../i18n';
 
 export function Login() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checkingToken, setCheckingToken] = useState(true);
   const [requiresBootstrap, setRequiresBootstrap] = useState(false);
+
+  const resolvePostLoginTarget = () => {
+    const url = new URL(window.location.href);
+    const raw = String(url.searchParams.get('redirect') || '').trim();
+    if (!raw) return '/dashboard';
+
+    // Prevent open redirects: only allow same-origin relative paths.
+    if (!raw.startsWith('/') || raw.startsWith('//')) {
+      return '/dashboard';
+    }
+    return raw;
+  };
 
   useEffect(() => {
     let active = true;
@@ -35,7 +49,7 @@ export function Login() {
           url.searchParams.delete('token');
           url.searchParams.delete('adminToken');
           window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-          window.location.href = '/dashboard';
+          window.location.href = resolvePostLoginTarget();
           return;
         }
 
@@ -44,7 +58,7 @@ export function Login() {
         const connected = await verifyCurrentAdminConnection();
         if (!active) return;
         if (connected) {
-          window.location.href = '/dashboard';
+          window.location.href = resolvePostLoginTarget();
           return;
         }
       }
@@ -63,7 +77,7 @@ export function Login() {
     setError('');
 
     if (!username.trim() || !password) {
-      setError('Identifiant et mot de passe requis.');
+      setError(t('login.required'));
       return;
     }
 
@@ -97,7 +111,7 @@ export function Login() {
       details: { username: username.trim() }
     });
 
-    window.location.href = '/dashboard';
+    window.location.href = resolvePostLoginTarget();
   };
 
   return (
@@ -107,15 +121,15 @@ export function Login() {
           <div className="mx-auto w-12 h-12 rounded-full bg-[rgba(59,130,246,0.2)] flex items-center justify-center mb-3">
             <LockKeyhole size={20} className="text-[#3b82f6]" />
           </div>
-          <h1 className="text-2xl text-[#e5e7eb]">Connexion Administrateur</h1>
+          <h1 className="text-2xl text-[#e5e7eb]">{t('login.title')}</h1>
           {requiresBootstrap ? (
-            <p className="text-sm text-[#9ca3af] mt-2">Première configuration détectée : créez le compte administrateur principal.</p>
+            <p className="text-sm text-[#9ca3af] mt-2">{t('login.bootstrap')}</p>
           ) : null}
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4 max-w-sm mx-auto w-full">
           <div>
-            <label className="block text-[#e5e7eb] mb-1" htmlFor="login-username">Identifiant</label>
+            <label className="block text-[#e5e7eb] mb-1" htmlFor="login-username">{t('login.username')}</label>
             <input
               id="login-username"
               value={username}
@@ -124,7 +138,7 @@ export function Login() {
             />
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-1" htmlFor="login-password">Mot de passe</label>
+            <label className="block text-[#e5e7eb] mb-1" htmlFor="login-password">{t('login.password')}</label>
             <input
               id="login-password"
               type="password"
@@ -138,7 +152,7 @@ export function Login() {
 
           <GlassButton type="submit" className="w-full" disabled={checkingToken}>
             <LogIn size={16} className="mr-2" />
-            {checkingToken ? 'Vérification en cours…' : (requiresBootstrap ? 'Créer l\'admin et se connecter' : 'Se connecter')}
+            {checkingToken ? t('login.verifying') : (requiresBootstrap ? t('login.createAndLogin') : t('login.submit'))}
           </GlassButton>
         </form>
       </GlassCard>

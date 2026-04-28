@@ -1,7 +1,9 @@
 import React from 'react';
 import { GlassCard } from '../components/GlassCard';
+import { useTranslation } from '../i18n';
 
 export function Ops() {
+  const { t } = useTranslation();
   const [sla, setSla] = React.useState({ availabilityPercent: 100, incidentsLast24h: 0, mttrMinutes: 0 });
   const [fleet, setFleet] = React.useState({ total: 0, online: 0, stale: 0, offline: 0, pending: 0 });
   const [audit, setAudit] = React.useState<any[]>([]);
@@ -36,31 +38,31 @@ export function Ops() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl text-[#e5e7eb] mb-2">Ops</h1>
-        <p className="text-[#9ca3af]">SLA, incidents et historique d’audit.</p>
+        <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('ops.title')}</h1>
+        <p className="text-[#9ca3af]">{t('ops.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">Disponibilité</div><div className="text-2xl text-[#22c55e] font-bold">{sla.availabilityPercent.toFixed(2)}%</div></GlassCard>
-        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">Incidents (24h)</div><div className="text-2xl text-[#f59e0b] font-bold">{sla.incidentsLast24h}</div></GlassCard>
-        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">MTTR</div><div className="text-2xl text-[#3b82f6] font-bold">{sla.mttrMinutes} min</div></GlassCard>
+        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">{t('ops.availability')}</div><div className="text-2xl text-[#22c55e] font-bold">{sla.availabilityPercent.toFixed(2)}%</div></GlassCard>
+        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">{t('ops.incidents')}</div><div className="text-2xl text-[#f59e0b] font-bold">{sla.incidentsLast24h}</div></GlassCard>
+        <GlassCard className="p-4"><div className="text-[#9ca3af] text-sm">{t('ops.mttr')}</div><div className="text-2xl text-[#3b82f6] font-bold">{sla.mttrMinutes} min</div></GlassCard>
       </div>
 
       <GlassCard className="p-4">
-        <h2 className="text-lg text-[#e5e7eb] mb-2">Fleet summary</h2>
-        <div className="text-[#cbd5e1] text-sm">Total {fleet.total} • Online {fleet.online} • Stale {fleet.stale} • Offline {fleet.offline} • Pending {fleet.pending}</div>
+        <h2 className="text-lg text-[#e5e7eb] mb-2">{t('ops.fleetSummary')}</h2>
+        <div className="text-[#cbd5e1] text-sm">{t('fleet.total')} {fleet.total} • {t('fleet.online')} {fleet.online} • {t('fleet.stale')} {fleet.stale} • {t('fleet.offline')} {fleet.offline} • {t('fleet.pending')} {fleet.pending}</div>
       </GlassCard>
 
       <GlassCard className="p-4 overflow-auto">
-        <h2 className="text-lg text-[#e5e7eb] mb-3">Historique d’audit</h2>
+        <h2 className="text-lg text-[#e5e7eb] mb-3">{t('ops.auditHistory')}</h2>
         <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="text-left text-[#9ca3af] border-b border-[rgba(255,255,255,0.12)]">
-              <th className="py-2">Date</th>
-              <th className="py-2">Type</th>
-              <th className="py-2">Niveau</th>
-              <th className="py-2">Source</th>
-              <th className="py-2">Message</th>
+              <th className="py-2">{t('ops.date')}</th>
+              <th className="py-2">{t('ops.type')}</th>
+              <th className="py-2">{t('ops.level')}</th>
+              <th className="py-2">{t('ops.source')}</th>
+              <th className="py-2">{t('ops.message')}</th>
             </tr>
           </thead>
           <tbody>

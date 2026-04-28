@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Monitor, List, FolderOpen, Calendar, Layout, Database, FileText, Settings, Home, DoorOpen, LayoutTemplate, BookOpen, Braces, Bell, ActivitySquare, ShieldAlert, LogOut } from 'lucide-react';
-import { getCurrentAdminSession, listStoredAdminAccounts, logoutAdmin, switchAdminAccount } from '../../services/adminAuthService';
+import { getCurrentAdminSession, hasAdminPermission, listStoredAdminAccounts, logoutAdmin, switchAdminAccount } from '../../services/adminAuthService';
+import { useTranslation } from '../i18n';
 
 type MenuItem = {
   id: string;
@@ -9,6 +10,7 @@ type MenuItem = {
   label: string;
   icon: React.ComponentType<{ size?: number }>;
   external?: boolean;
+  permissionKey?: string;
 };
 
 interface SidebarProps {
@@ -17,6 +19,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+  const { t } = useTranslation();
   const currentSession = getCurrentAdminSession();
   const accounts = useMemo(() => listStoredAdminAccounts(), []);
 
@@ -32,32 +35,37 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   };
 
   const menuItems: MenuItem[] = [
-    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: Home },
-    { id: 'screens', path: '/screens', label: 'Screens', icon: Monitor },
-    { id: 'rooms', path: '/rooms', label: 'Rooms', icon: DoorOpen },
-    { id: 'playlists', path: '/playlists', label: 'Playlists', icon: List },
-    { id: 'assets', path: '/assets', label: 'Assets', icon: FolderOpen },
-    { id: 'calendar', path: '/calendar', label: 'Calendar', icon: Calendar },
-    { id: 'layouts', path: '/layouts', label: 'Layouts', icon: Layout },
-    { id: 'templates', path: '/templates', label: 'Templates', icon: LayoutTemplate },
-    { id: 'storage', path: '/storage', label: 'Storage', icon: Database },
-    { id: 'logs', path: '/logs', label: 'Logs', icon: FileText },
-    { id: 'fleet', path: '/fleet', label: 'Fleet', icon: ActivitySquare },
-    { id: 'alerts', path: '/alerts', label: 'Alerts', icon: Bell },
-    { id: 'ops', path: '/ops', label: 'Ops', icon: ShieldAlert },
-    { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
-    { id: 'docs', path: '/docs/', label: 'Documentation', icon: BookOpen, external: true },
-    { id: 'api-docs', path: '/docs/api/index.html', label: 'API', icon: Braces, external: true },
+    { id: 'dashboard', path: '/dashboard', label: t('nav.dashboard'), icon: Home, permissionKey: 'dashboard' },
+    { id: 'screens', path: '/screens', label: t('nav.screens'), icon: Monitor, permissionKey: 'screens' },
+    { id: 'rooms', path: '/rooms', label: t('nav.rooms'), icon: DoorOpen, permissionKey: 'calendar' },
+    { id: 'playlists', path: '/playlists', label: t('nav.playlists'), icon: List, permissionKey: 'playlists' },
+    { id: 'assets', path: '/assets', label: t('nav.assets'), icon: FolderOpen, permissionKey: 'assets' },
+    { id: 'calendar', path: '/calendar', label: t('nav.calendar'), icon: Calendar, permissionKey: 'calendar' },
+    { id: 'layouts', path: '/layouts', label: t('nav.layouts'), icon: Layout, permissionKey: 'layouts' },
+    { id: 'templates', path: '/templates', label: t('nav.templates'), icon: LayoutTemplate, permissionKey: 'layouts' },
+    { id: 'storage', path: '/storage', label: t('nav.storage'), icon: Database, permissionKey: 'settings' },
+    { id: 'logs', path: '/logs', label: t('nav.logs'), icon: FileText, permissionKey: 'logs' },
+    { id: 'fleet', path: '/fleet', label: t('nav.fleet'), icon: ActivitySquare, permissionKey: 'monitoring' },
+    { id: 'alerts', path: '/alerts', label: t('nav.alerts'), icon: Bell, permissionKey: 'alerts' },
+    { id: 'ops', path: '/ops', label: t('nav.ops'), icon: ShieldAlert, permissionKey: 'monitoring' },
+    { id: 'settings', path: '/settings', label: t('nav.settings'), icon: Settings, permissionKey: 'settings' },
+    { id: 'docs', path: '/docs/', label: t('nav.docs'), icon: BookOpen, external: true },
+    { id: 'api-docs', path: '/docs/api/index.html', label: t('nav.api'), icon: Braces, external: true },
   ];
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.external) return true;
+    if (!item.permissionKey) return true;
+    return hasAdminPermission(item.permissionKey, 'read');
+  });
   return (
     <div className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-[rgba(255,255,255,0.05)] backdrop-blur-[20px] border-r border-[rgba(255,255,255,0.12)] flex flex-col transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
       <div className="p-6 border-b border-[rgba(255,255,255,0.12)]">
-        <h1 className="text-xl text-[#e5e7eb]">Digital Signage</h1>
-        <p className="text-sm text-[#9ca3af]">Management System</p>
+        <h1 className="text-xl text-[#e5e7eb]">{t('nav.title')}</h1>
+        <p className="text-sm text-[#9ca3af]">{t('nav.subtitle')}</p>
       </div>
       
       <nav className="flex-1 overflow-y-auto py-4">
-        {menuItems.map((item) => {
+        {visibleMenuItems.map((item) => {
           const Icon = item.icon;
 
           if (item.external) {

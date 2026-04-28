@@ -1,17 +1,18 @@
-# Guide utilisateur complet
+# User Manual
 
-Ce manuel est organisé en pages par **onglet** de l’application et par **types de configuration**.
+## FR
 
-## Parcours recommandé
+Ce hub utilisateur centralise le parcours recommandé et les liens vers les manuels détaillés par écran fonctionnel.
+
+### Parcours conseillé
 
 1. [Configuration initiale](./manual/configuration-types)
 2. [Screens](./manual/screens)
-3. [Layouts](./manual/layouts) + [Playlists](./manual/playlists) + [Assets](./manual/assets)
-4. [Dashboard](./manual/dashboard)
-5. [Fleet](./manual/fleet) + [Alerts](./manual/alerts) + [Ops](./manual/ops)
-6. [Storage](./manual/storage) + [Settings](./manual/settings)
+3. [Layouts](./manual/layouts), [Playlists](./manual/playlists) et [Assets](./manual/assets)
+4. [Dashboard](./manual/dashboard), [Fleet](./manual/fleet), [Alerts](./manual/alerts) et [Ops](./manual/ops)
+5. [Storage](./manual/storage) et [Settings](./manual/settings)
 
-## Pages par onglet
+### Surfaces quotidiennes
 
 - [Dashboard](./manual/dashboard)
 - [Screens](./manual/screens)
@@ -28,14 +29,14 @@ Ce manuel est organisé en pages par **onglet** de l’application et par **type
 - [Ops](./manual/ops)
 - [Settings](./manual/settings)
 
-## Pages par type de configuration
+### Bon à savoir
 
-- [Types de configuration (vue globale)](./manual/configuration-types)
+- Le panel admin peut tourner dans un navigateur ou dans l’app Electron Windows.
+- Le pairing player passe par PIN ou QR code.
+- Le player Electron Windows restaure son identité au redémarrage.
 
-## Assistance
+## EN
 
-En cas de problème:
+This hub points to the detailed tab-by-tab manuals. Start with configuration types, then Screens, then content management, then operations surfaces such as Dashboard, Fleet, Alerts and Ops.
 
-- consulter [Dépannage](./troubleshooting),
-- vérifier [Référence API](../reference/api),
-- remonter les incidents avec contexte (écran, heure, action effectuée, message d’erreur).
+If you need the player enrollment flow specifically, read [Player & Pairing](./player-pairing). If you are troubleshooting a desktop package, read [Troubleshooting](./troubleshooting).

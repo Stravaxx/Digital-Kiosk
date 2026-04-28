@@ -17,6 +17,7 @@ import {
   type BackgroundUpdateState,
   type UpdateStatus
 } from '../../services/updateService';
+import { useTranslation } from '../i18n';
 
 const UPDATE_LAST_NOTIFIED_TAG_KEY = 'ds.updates.last-notified-tag';
 
@@ -29,6 +30,7 @@ interface AdminUserView {
 }
 
 export function Settings() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SYSTEM_SETTINGS);
   const session = getCurrentAdminSession();
   const isAdmin = session?.role === 'admin';
@@ -307,20 +309,20 @@ export function Settings() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">System Settings</h1>
-          <p className="text-[#9ca3af]">Configure global system parameters</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('settings.title')}</h1>
+          <p className="text-[#9ca3af]">{t('settings.subtitle')}</p>
         </div>
         <GlassButton onClick={saveChanges}>
           <Save size={20} className="inline mr-2" />
-          Save Changes
+          {t('common.saveChanges')}
         </GlassButton>
       </div>
 
       <GlassCard className="p-6">
-        <h2 className="text-lg text-[#e5e7eb] mb-4">General Settings</h2>
+        <h2 className="text-lg text-[#e5e7eb] mb-4">{t('settings.general')}</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-timezone">System Timezone</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-timezone">{t('settings.systemTimezone')}</label>
             <select id="settings-timezone" title="System Timezone" aria-label="System Timezone" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })} className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]">
               <option className="bg-[#111827] text-[#e5e7eb]">UTC</option>
               <option className="bg-[#111827] text-[#e5e7eb]">America/New_York</option>
@@ -329,7 +331,7 @@ export function Settings() {
             </select>
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-date-format">Date Format</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-date-format">{t('settings.dateFormat')}</label>
             <select id="settings-date-format" title="Date Format" aria-label="Date Format" value={settings.dateFormat} onChange={(event) => setSettings({ ...settings, dateFormat: event.target.value })} className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]">
               <option className="bg-[#111827] text-[#e5e7eb]">DD/MM/YYYY</option>
               <option className="bg-[#111827] text-[#e5e7eb]">MM/DD/YYYY</option>
@@ -340,10 +342,10 @@ export function Settings() {
       </GlassCard>
 
       <GlassCard className="p-6">
-        <h2 className="text-lg text-[#e5e7eb] mb-4">Player Settings</h2>
+        <h2 className="text-lg text-[#e5e7eb] mb-4">{t('settings.player')}</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-default-duration">Default Content Duration (seconds)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-default-duration">{t('settings.defaultDuration')}</label>
             <input
               id="settings-default-duration"
               title="Default Content Duration (seconds)"
@@ -355,7 +357,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-player-refresh">Player Refresh Interval (minutes)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-player-refresh">{t('settings.refreshInterval')}</label>
             <input
               id="settings-player-refresh"
               title="Player Refresh Interval (minutes)"
@@ -367,7 +369,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-heartbeat">Heartbeat Interval (seconds)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-heartbeat">{t('settings.heartbeat')}</label>
             <input
               id="settings-heartbeat"
               title="Heartbeat Interval (seconds)"
@@ -379,7 +381,29 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-transition-effect">Transition Effect</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-network-interface">{t('settings.networkInterface')}</label>
+            <select
+              id="settings-network-interface"
+              title="Network Interface Priority"
+              aria-label="Network Interface Priority"
+              value={settings.networkInterfacePreference}
+              onChange={(event) => setSettings({ ...settings, networkInterfacePreference: event.target.value })}
+              className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+            >
+              <option className="bg-[#111827] text-[#e5e7eb]" value="auto">Auto (interface la plus utilisée)</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="wifi">Priorité Wi-Fi</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="realtek">Priorité Realtek</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="broadcom">Priorité Broadcom</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="mediatek">Priorité MediaTek</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="hyperv">Priorité Hyper-V</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="vmware">Priorité VMWare</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="virtualbox">Priorité VirtualBox</option>
+              <option className="bg-[#111827] text-[#e5e7eb]" value="qemu">Priorité QEMU</option>
+            </select>
+            <p className="text-xs text-[#9ca3af] mt-2">{t('settings.networkInterfaceHint')}</p>
+          </div>
+          <div>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-transition-effect">{t('settings.transitionEffect')}</label>
             <select id="settings-transition-effect" title="Transition Effect" aria-label="Transition Effect" value={settings.transitionEffect} onChange={(event) => setSettings({ ...settings, transitionEffect: event.target.value })} className="w-full appearance-none bg-[#111827] border border-[rgba(255,255,255,0.18)] rounded-[16px] px-4 py-2 text-[#e5e7eb] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]">
               <option className="bg-[#111827] text-[#e5e7eb]">Fade</option>
               <option className="bg-[#111827] text-[#e5e7eb]">Slide</option>
@@ -389,7 +413,7 @@ export function Settings() {
             </select>
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-transition-duration">Transition Duration (milliseconds)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-transition-duration">{t('settings.transitionDuration')}</label>
             <input
               id="settings-transition-duration"
               title="Transition Duration (milliseconds)"
@@ -404,10 +428,10 @@ export function Settings() {
       </GlassCard>
 
       <GlassCard className="p-6">
-        <h2 className="text-lg text-[#e5e7eb] mb-4">Storage Limits</h2>
+        <h2 className="text-lg text-[#e5e7eb] mb-4">{t('settings.storage')}</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-max-storage">Maximum Storage (GB)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-max-storage">{t('settings.maxStorage')}</label>
             <input
               id="settings-max-storage"
               title="Maximum Storage (GB)"
@@ -419,7 +443,7 @@ export function Settings() {
             />
           </div>
           <div>
-            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-cache-limit">Cache Limit (GB)</label>
+            <label className="block text-[#e5e7eb] mb-2" htmlFor="settings-cache-limit">{t('settings.cacheLimit')}</label>
             <input
               id="settings-cache-limit"
               title="Cache Limit (GB)"

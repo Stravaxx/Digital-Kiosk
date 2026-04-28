@@ -12,6 +12,7 @@ import { type PlaylistModel } from '../../shared/playlistRegistry';
 import { ensureAssetIdsAvailableOnSystem, getAssetBlob, type AssetRecord } from '../../services/assetService';
 import { deleteLayoutFromApi, listLayoutsFromApi, upsertLayoutFromApi } from '../../services/layoutApiService';
 import { listPlaylistsFromApi } from '../../services/playlistApiService';
+import { useTranslation } from '../i18n';
 
 const zoneTypeOptions: LayoutZoneType[] = ['header', 'main', 'sidebar', 'footer', 'calendar', 'widget', 'media'];
 
@@ -39,6 +40,7 @@ function extractAssetIdsFromLayout(layout: LayoutModel, playlists: PlaylistModel
 }
 
 export function Layouts() {
+  const { t } = useTranslation();
   const [layouts, setLayouts] = useState<LayoutModel[]>([]);
   const [playlists, setPlaylists] = useState<PlaylistModel[]>([]);
   const [editing, setEditing] = useState<LayoutModel | null>(null);
@@ -264,24 +266,24 @@ export function Layouts() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Layouts</h1>
-          <p className="text-[#9ca3af]">Personnalisez les zones et les informations affichées côté player</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('layouts.title')}</h1>
+          <p className="text-[#9ca3af]">{t('layouts.subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <GlassButton variant="ghost" onClick={() => createPresetLayout('meeting-room')}>Preset salle</GlassButton>
-          <GlassButton variant="ghost" onClick={() => createPresetLayout('info-screen')}>Preset info</GlassButton>
+          <GlassButton variant="ghost" onClick={() => createPresetLayout('meeting-room')}>{t('layouts.presetRoom')}</GlassButton>
+          <GlassButton variant="ghost" onClick={() => createPresetLayout('info-screen')}>{t('layouts.presetInfo')}</GlassButton>
           <GlassButton onClick={createLayout}>
             <Plus size={20} className="inline mr-2" />
-            Nouveau layout
+            {t('layouts.new')}
           </GlassButton>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <GlassCard className="p-6">
-          <h2 className="text-lg text-[#e5e7eb] mb-4">Layouts enregistrés</h2>
+          <h2 className="text-lg text-[#e5e7eb] mb-4">{t('layouts.saved')}</h2>
           {layouts.length === 0 ? (
-            <p className="text-[#9ca3af]">Aucun layout enregistré.</p>
+            <p className="text-[#9ca3af]">{t('layouts.none')}</p>
           ) : (
             <div className="space-y-3">
               {layouts.map((layout) => (
@@ -313,9 +315,9 @@ export function Layouts() {
         </GlassCard>
 
         <GlassCard className="p-6">
-          <h2 className="text-lg text-[#e5e7eb] mb-4">Éditeur</h2>
+          <h2 className="text-lg text-[#e5e7eb] mb-4">{t('layouts.editor')}</h2>
           {!editing ? (
-            <p className="text-[#9ca3af]">Sélectionnez un layout ou créez-en un nouveau.</p>
+            <p className="text-[#9ca3af]">{t('layouts.selectOrCreate')}</p>
           ) : (
             <div className="space-y-4">
               <div>
@@ -535,7 +537,7 @@ export function Layouts() {
 
               <GlassButton onClick={saveCurrentLayout} className="w-full">
                 <Save size={16} className="mr-2" />
-                Enregistrer le layout
+                {t('layouts.save')}
               </GlassButton>
               {saveError ? <p className="text-[#ef4444] text-sm">{saveError}</p> : null}
             </div>
@@ -547,7 +549,7 @@ export function Layouts() {
         <GlassCard className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <LayoutDashboard className="text-[#3b82f6]" size={20} />
-            <h3 className="text-[#e5e7eb]">Aperçu des informations enregistrées</h3>
+            <h3 className="text-[#e5e7eb]">{t('layouts.preview')}</h3>
           </div>
           <p className="text-[#e5e7eb] mb-2">Header: {editing.headerText || '—'}</p>
           <div className="space-y-1">
@@ -581,7 +583,7 @@ export function Layouts() {
 
       <MediaExplorerModal
         open={footerLogoPickerOpen}
-        title="Choisir un logo footer"
+        title={t('layouts.pickFooterLogo')}
         onClose={() => setFooterLogoPickerOpen(false)}
         onSelect={(asset) => addFooterLogoFromExplorer(asset)}
         allowedTypes={['image']}

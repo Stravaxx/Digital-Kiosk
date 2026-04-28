@@ -11,7 +11,7 @@ on:
       - master
 
 jobs:
-  build:
+  web-and-api:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,32 +27,55 @@ jobs:
       - name: Install dependencies (root)
         run: npm ci
 
-      - name: Build Vite application
+      - name: Build web application
         run: npm run build
 
       - name: Run tests
         run: npm test --if-present
 
-  ensure-release-branch:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+  electron-renderer:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Ensure release branch exists
-        shell: bash
-        run: |
-          git fetch origin release || true
-          if git ls-remote --exit-code --heads origin release >/dev/null 2>&1; then
-            echo "La branche release existe déjà."
-          else
-            echo "Création de la branche release depuis ${GITHUB_REF_NAME}."
-            git checkout -b release
-            git push origin release
-          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Build Electron renderer
+        run: npm run electron:renderer:build
+
+  flutter-manager:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: Digital Kiosk Manager
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter tests
+        run: flutter test
+
+      - name: Build Flutter Windows app
+        run: flutter build windows --release

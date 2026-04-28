@@ -8,6 +8,7 @@ export interface SystemSettings {
   defaultContentDurationSec: number;
   playerRefreshIntervalMin: number;
   heartbeatIntervalSec: number;
+  networkInterfacePreference: string;
   transitionEffect: string;
   transitionDurationMs: number;
   maximumStorageGb: number;
@@ -20,6 +21,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   defaultContentDurationSec: 10,
   playerRefreshIntervalMin: 60,
   heartbeatIntervalSec: 30,
+  networkInterfacePreference: 'auto',
   transitionEffect: 'Fade',
   transitionDurationMs: 300,
   maximumStorageGb: 100,
@@ -40,6 +42,7 @@ function normalizeSettings(input: unknown): SystemSettings {
     defaultContentDurationSec: normalizeNumber(row.defaultContentDurationSec, DEFAULT_SYSTEM_SETTINGS.defaultContentDurationSec, 1),
     playerRefreshIntervalMin: normalizeNumber(row.playerRefreshIntervalMin, DEFAULT_SYSTEM_SETTINGS.playerRefreshIntervalMin, 1),
     heartbeatIntervalSec: normalizeNumber(row.heartbeatIntervalSec, DEFAULT_SYSTEM_SETTINGS.heartbeatIntervalSec, 1),
+    networkInterfacePreference: String(row.networkInterfacePreference || DEFAULT_SYSTEM_SETTINGS.networkInterfacePreference || 'auto').trim() || 'auto',
     transitionEffect: String(row.transitionEffect || DEFAULT_SYSTEM_SETTINGS.transitionEffect),
     transitionDurationMs: normalizeNumber(row.transitionDurationMs, DEFAULT_SYSTEM_SETTINGS.transitionDurationMs, 0),
     maximumStorageGb: normalizeNumber(row.maximumStorageGb, DEFAULT_SYSTEM_SETTINGS.maximumStorageGb, 1),

@@ -1,0 +1,38 @@
+{
+  "appId": "com.stravaxx.digitalkiosk.player",
+  "productName": "Digital Kiosk Player",
+  "directories": {
+    "output": "release/player",
+    "buildResources": "public/branding"
+  },
+  "files": [
+    "electron/player-main.cjs",
+    "electron/preload-player.cjs",
+    "public/branding/**",
+    "public/brandiing/**",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "electron/player-main.cjs"
+  },
+  "asar": true,
+  "win": {
+    "icon": "public/branding/kiosk-icon.ico",
+    "target": [
+      "nsis",
+      "portable"
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Digital Kiosk Player",
+    "artifactName": "Digital-Kiosk-Player-Setup-${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "Digital-Kiosk-Player-Portable-${version}.${ext}"
+  }
+}

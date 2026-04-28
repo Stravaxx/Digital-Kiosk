@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-  title: 'Digital Signage Docs',
-  description: 'Documentation fonctionnelle et API du projet Digital Signage',
+  title: 'Digital Kiosk Docs',
+  description: 'Documentation fonctionnelle, technique et Windows packaging pour Digital Kiosk',
   base: '/docs/',
   outDir: '../public/docs',
   ignoreDeadLinks: [
@@ -20,7 +20,9 @@ export default defineConfig({
           { text: 'Accueil', link: '/' },
           { text: 'Vue d’ensemble', link: '/guide/overview' },
           { text: 'Installation', link: '/guide/installation' },
-          { text: 'Mode dev/prod (tout-en-un)', link: '/guide/run-modes' }
+          { text: 'Mode dev/prod (tout-en-un)', link: '/guide/run-modes' },
+          { text: 'Guide développeur complet', link: '/guide/developer-handbook' },
+          { text: 'Addons recommandés', link: '/guide/addons-recommandes' }
         ]
       },
       {
@@ -44,7 +46,6 @@ export default defineConfig({
           { text: 'Types de configuration', link: '/guide/manual/configuration-types' },
           { text: 'Authentification', link: '/guide/authentication' },
           { text: 'Player & Pairing PIN', link: '/guide/player-pairing' },
-          { text: 'Agent Kiosk C++', link: '/guide/kiosk-agent-cpp' },
           { text: 'Déploiement', link: '/guide/deployment' },
           { text: 'Exploitation', link: '/guide/operations' },
           { text: 'Dépannage', link: '/guide/troubleshooting' }
@@ -53,12 +54,12 @@ export default defineConfig({
       {
         text: 'Référence',
         items: [
-          { text: 'API & Endpoints', link: '/reference/api' }
+          { text: 'API & Endpoints (complet)', link: '/reference/api' }
         ]
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/' }
+      { icon: 'github', link: 'https://github.com/Stravaxx/Digital-Kiosk' }
     ]
   }
 });

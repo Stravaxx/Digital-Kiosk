@@ -77,7 +77,7 @@ Le positionnement est pragmatique: **fiabilité opérationnelle d’abord**, pui
 - `src-vite/services/*`: services front (API client, auth, playlist engine, update, ws, etc.).
 - `server.cjs`: API centrale, auth/session, contenus, player, monitoring, storage, updates.
 - `prisma/schema.prisma`: modèle de données relationnel.
-- `kiosk-agent-cpp/*`: agent natif C++ (service/watchdog/offline).
+- `electron/*`: shell desktop/admin et player Windows (runtime packagé).
 - `docs/*`: documentation produit, exploitation, API.
 
 ---
@@ -244,37 +244,37 @@ Chantiers déjà identifiés:
 
 ### 14.1 Vue globale
 
-![01 - Dashboard global](./screens/01-dashboard-overview.png)
+- [ ] `01-dashboard-overview.png` (dashboard global)
 
 ### 14.2 Parc écrans
 
-![02 - Screens list + statuts](./screens/02-screens-list.png)
-![03 - Pairing PIN/QR](./screens/03-pairing-pin-qr.png)
-![04 - Commandes bulk écrans](./screens/04-screens-bulk-actions.png)
+- [ ] `02-screens-list.png` (liste écrans + statuts)
+- [ ] `03-pairing-pin-qr.png` (pairing PIN/QR)
+- [ ] `04-screens-bulk-actions.png` (commandes bulk)
 
 ### 14.3 Contenus
 
-![05 - Layout editor](./screens/05-layouts-editor.png)
-![06 - Playlists](./screens/06-playlists-management.png)
-![07 - Assets library](./screens/07-assets-library.png)
-![08 - Templates](./screens/08-templates.png)
+- [ ] `05-layouts-editor.png` (éditeur de layout)
+- [ ] `06-playlists-management.png` (gestion playlists)
+- [ ] `07-assets-library.png` (bibliothèque assets)
+- [ ] `08-templates.png` (templates)
 
 ### 14.4 Planning
 
-![09 - Rooms](./screens/09-rooms.png)
-![10 - Calendar avec filtres/recherche](./screens/10-calendar-filters-search.png)
+- [ ] `09-rooms.png` (rooms)
+- [ ] `10-calendar-filters-search.png` (calendar avec filtres/recherche)
 
 ### 14.5 Supervision
 
-![11 - Fleet monitoring](./screens/11-fleet-monitoring.png)
-![12 - Alerts center](./screens/12-alerts-center.png)
-![13 - Ops KPI / SLA](./screens/13-ops-kpi-sla.png)
-![14 - Logs & audit](./screens/14-logs-audit.png)
+- [ ] `11-fleet-monitoring.png` (fleet monitoring)
+- [ ] `12-alerts-center.png` (alerts center)
+- [ ] `13-ops-kpi-sla.png` (ops KPI / SLA)
+- [ ] `14-logs-audit.png` (logs & audit)
 
 ### 14.6 Administration système
 
-![15 - Settings & policies](./screens/15-settings-policies.png)
-![16 - Update en cours + progression](./screens/16-update-progress.png)
+- [ ] `15-settings-policies.png` (settings & policies)
+- [ ] `16-update-progress.png` (update en cours + progression)
 
 ---
 

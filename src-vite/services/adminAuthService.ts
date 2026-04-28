@@ -11,9 +11,17 @@ interface AdminSession {
   token: string;
   username: string;
   role: 'admin' | 'operator' | 'viewer';
+  permissions: PermissionMatrix;
   idleTimeoutMs: number;
   lastActivityAt: number;
 }
+
+export interface PermissionGrant {
+  read: boolean;
+  write: boolean;
+}
+
+export type PermissionMatrix = Record<string, PermissionGrant>;
 
 export interface LoginResult {
   ok: boolean;
@@ -29,6 +37,7 @@ interface SessionPayload {
   ok?: boolean;
   username?: string;
   role?: 'admin' | 'operator' | 'viewer' | string;
+  permissions?: Record<string, unknown>;
   idleTimeoutMs?: number;
   lastActivityAt?: number;
   error?: string;
@@ -87,6 +96,20 @@ function normalizeRole(raw: unknown): 'admin' | 'operator' | 'viewer' {
   return raw === 'admin' || raw === 'operator' || raw === 'viewer' ? raw : 'admin';
 }
 
+function normalizePermissionMatrix(raw: unknown): PermissionMatrix {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const next: PermissionMatrix = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const node = value as Record<string, unknown>;
+    next[key] = {
+      read: node.read === true,
+      write: node.write === true
+    };
+  }
+  return next;
+}
+
 function setLastAuthError(message: string): void {
   const value = String(message || '').trim();
   if (!value) {
@@ -141,6 +164,7 @@ function readSessionMap(): AdminSessionMap {
         token: String(session.token),
         username: String(session.username),
         role: normalizeRole(session.role),
+        permissions: normalizePermissionMatrix((session as Partial<AdminSession>).permissions),
         idleTimeoutMs: Number(session.idleTimeoutMs) > 0 ? Number(session.idleTimeoutMs) : 20 * 60 * 1000,
         lastActivityAt: Number(session.lastActivityAt) > 0 ? Number(session.lastActivityAt) : Date.now()
       };
@@ -185,6 +209,7 @@ function getStoredSession(): AdminSession | null {
       token: String(parsed.token),
       username: String(parsed.username),
       role: normalizeRole(parsed.role),
+      permissions: normalizePermissionMatrix((parsed as Partial<AdminSession>).permissions),
       idleTimeoutMs: Number(parsed.idleTimeoutMs) > 0 ? Number(parsed.idleTimeoutMs) : 20 * 60 * 1000,
       lastActivityAt: Number(parsed.lastActivityAt) > 0 ? Number(parsed.lastActivityAt) : Date.now()
     };
@@ -368,6 +393,7 @@ export async function adoptAdminToken(token: string): Promise<LoginResult> {
       token: trimmedToken,
       username: String(payload.username),
       role: normalizeRole(payload.role),
+      permissions: normalizePermissionMatrix(payload.permissions),
       idleTimeoutMs: Number(payload.idleTimeoutMs) > 0 ? Number(payload.idleTimeoutMs) : 20 * 60 * 1000,
       lastActivityAt: Number(payload.lastActivityAt) > 0 ? Number(payload.lastActivityAt) : Date.now()
     });
@@ -406,17 +432,7 @@ export async function loginAdmin(username: string, password: string): Promise<Lo
       return { ok: false, message };
     }
 
-    saveSession({
-      token: String(payload.token),
-      username: String(payload.username || username.trim()),
-      role: payload.role === 'admin' || payload.role === 'operator' || payload.role === 'viewer'
-        ? payload.role
-        : 'admin',
-      idleTimeoutMs: Number(payload.idleTimeoutMs) > 0 ? Number(payload.idleTimeoutMs) : 20 * 60 * 1000,
-      lastActivityAt: Number(payload.lastActivityAt) > 0 ? Number(payload.lastActivityAt) : Date.now()
-    });
-
-    return { ok: true };
+    return adoptAdminToken(String(payload.token));
   } catch {
     setLastAuthError('Serveur indisponible. Vérifiez la connexion au serveur.');
     return { ok: false, message: 'Serveur indisponible.' };
@@ -481,7 +497,7 @@ export async function logoutAdmin(): Promise<void> {
   clearLastAuthError();
 }
 
-export function getCurrentAdminSession(): { username: string; role: 'admin' | 'operator' | 'viewer' } | null {
+export function getCurrentAdminSession(): { username: string; role: 'admin' | 'operator' | 'viewer'; permissions: PermissionMatrix } | null {
   const session = getStoredSession();
   if (!session || isSessionExpired(session)) {
     clearSession();
@@ -489,8 +505,18 @@ export function getCurrentAdminSession(): { username: string; role: 'admin' | 'o
   }
   return {
     username: session.username,
-    role: session.role
+    role: session.role,
+    permissions: normalizePermissionMatrix(session.permissions)
   };
+}
+
+export function hasAdminPermission(permissionKey: string, mode: 'read' | 'write' = 'read'): boolean {
+  const session = getCurrentAdminSession();
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  const node = session.permissions?.[permissionKey];
+  if (!node) return false;
+  return mode === 'write' ? node.write === true : node.read === true;
 }
 
 export function installAdminAuthClient(): void {

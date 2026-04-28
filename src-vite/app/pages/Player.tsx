@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Wifi, WifiOff, QrCode, Menu, X, RefreshCcw } from 'lucide-react';
+import { Wifi, WifiOff, QrCode, Menu, X, RefreshCcw, Settings } from 'lucide-react';
 import { type LayoutModel } from '../../shared/layoutRegistry';
 import { DEFAULT_GROUP_THEME, type GroupThemeSettings, type ScreenModel } from '../../shared/screenRegistry';
 import { expandEventsForPeriod, type LocalCalendarEvent, type LocalCalendarOccurrence, type RoomModel } from '../../shared/localCalendar';
@@ -11,11 +11,34 @@ import { markdownToHtml } from '../../services/markdownService';
 import { computeNextMediaIndex, isVideoSource, resolvePlaylistMediaItems, type PlayerMediaItem } from '../../services/playerPlaylistEngine';
 import { hydrateLocalStorageKeyFromDb, mirrorLocalStorageKeyToDb, syncLocalStorageKeyFromSystem } from '../../services/clientDbStorage';
 import { getClientEnv } from '../../services/runtimeEnv';
+import { getSystemWsUrl } from '../../services/systemApiBase';
+import { useTranslation } from '../i18n';
 
 interface PlayerIdentity {
   deviceId: string;
   deviceName: string;
   token: string;
+}
+
+interface PlayerDesktopApi {
+  loadIdentity: (instanceId: string) => Promise<Partial<PlayerIdentity> | null>;
+  saveIdentity: (instanceId: string, payload: PlayerIdentity) => Promise<boolean>;
+  loadSettings?: () => Promise<Partial<PlayerRuntimeSettings> | null>;
+  saveSettings?: (payload: Partial<PlayerRuntimeSettings>) => Promise<Partial<PlayerRuntimeSettings> | null>;
+  applySettings?: () => Promise<boolean>;
+}
+
+interface PlayerRuntimeSettings {
+  playerUrl: string;
+  instanceId: string;
+  launchFullscreen: boolean;
+  autoStartOnLogin: boolean;
+}
+
+declare global {
+  interface Window {
+    playerDesktopApi?: PlayerDesktopApi;
+  }
 }
 
 type PlayerMode = 'loading' | 'enroll' | 'display';
@@ -27,13 +50,22 @@ interface PlayerBoardRow {
 }
 
 interface EventStatus {
-  label: 'En Cours' | 'Commence bientôt' | 'Prochainement' | 'Annulé';
+  label: string;
   textClass: string;
 }
 
 interface PairingPinPayload {
   pin: string;
   expiresAt: string;
+  os: string;
+}
+
+interface SystemUsageSnapshot {
+  at: string;
+  cpuPercent: number;
+  memoryPercent: number;
+  networkMbps: number;
+  networkInterface?: string;
 }
 
 type PlayerCommandName = 'refresh' | 'reload' | 'reboot' | 'change-layout';
@@ -184,7 +216,7 @@ function detectSystemOs(): string {
   return navigator.platform || 'Inconnu';
 }
 
-async function collectPlayerTelemetry(version: string, startedAtMs: number) {
+async function collectPlayerTelemetry(version: string, startedAtMs: number, latestSystemUsage: SystemUsageSnapshot | null) {
   const nav = navigator as Navigator & { deviceMemory?: number };
   let diskUsedPercent = 0;
   try {
@@ -198,9 +230,14 @@ async function collectPlayerTelemetry(version: string, startedAtMs: number) {
     diskUsedPercent = 0;
   }
 
+  const fallbackCpu = Math.min(100, Math.max(0, Math.round((navigator.hardwareConcurrency || 0) * 8)));
+  const fallbackRam = Math.min(100, Math.max(0, Math.round((Number(nav.deviceMemory || 0) / 16) * 100)));
+
   return {
-    cpuPercent: Math.min(100, Math.max(0, Math.round((navigator.hardwareConcurrency || 0) * 8))),
-    memoryPercent: Math.min(100, Math.max(0, Math.round((Number(nav.deviceMemory || 0) / 16) * 100))),
+    cpuPercent: Number.isFinite(Number(latestSystemUsage?.cpuPercent)) ? Number(latestSystemUsage?.cpuPercent) : fallbackCpu,
+    memoryPercent: Number.isFinite(Number(latestSystemUsage?.memoryPercent)) ? Number(latestSystemUsage?.memoryPercent) : fallbackRam,
+    networkMbps: Number.isFinite(Number(latestSystemUsage?.networkMbps)) ? Number(latestSystemUsage?.networkMbps) : 0,
+    networkInterface: String(latestSystemUsage?.networkInterface || '').trim(),
     temperatureC: 0,
     diskUsedPercent,
     heartbeatLatencyMs: Math.max(0, Date.now() - startedAtMs),
@@ -377,15 +414,15 @@ function selectBoardDisplayWindow(occurrences: LocalCalendarOccurrence[], nowMs:
   return occurrences.filter((item) => dayKey(item.startAt) === firstDay);
 }
 
-function formatDayLabelFr(dateIso: string): string {
-  return new Date(dateIso).toLocaleDateString('fr-FR');
+function formatDayLabel(dateIso: string, locale: string): string {
+  return new Date(dateIso).toLocaleDateString(locale);
 }
 
-function formatHeaderDateFr(date: Date): string {
-  const weekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' }).format(date).replace('.', '');
-  const day = new Intl.DateTimeFormat('fr-FR', { day: '2-digit' }).format(date);
-  const month = new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(date).replace('.', '');
-  const year = new Intl.DateTimeFormat('fr-FR', { year: 'numeric' }).format(date);
+function formatHeaderDate(date: Date, locale: string): string {
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date).replace('.', '');
+  const day = new Intl.DateTimeFormat(locale, { day: '2-digit' }).format(date);
+  const month = new Intl.DateTimeFormat(locale, { month: 'short' }).format(date).replace('.', '');
+  const year = new Intl.DateTimeFormat(locale, { year: 'numeric' }).format(date);
   return `(${weekday} ${day}, ${month} ${year})`;
 }
 
@@ -465,21 +502,21 @@ async function isPlayerAuthorized(baseUrl: string, identity: PlayerIdentity): Pr
   }
 }
 
-function getEventStatus(startMs: number, endMs: number, nowMs: number, status?: LocalCalendarOccurrence['status']): EventStatus {
+function getEventStatus(startMs: number, endMs: number, nowMs: number, language: 'fr' | 'en', status?: LocalCalendarOccurrence['status']): EventStatus {
   if (status === 'cancelled') {
-    return { label: 'Annulé', textClass: 'text-[var(--player-danger)]' };
+    return { label: language === 'fr' ? 'Annulé' : 'Cancelled', textClass: 'text-[var(--player-danger)]' };
   }
 
   if (nowMs >= startMs && nowMs < endMs) {
-    return { label: 'En Cours', textClass: 'text-[var(--player-danger)]' };
+    return { label: language === 'fr' ? 'En cours' : 'Live', textClass: 'text-[var(--player-danger)]' };
   }
 
   const minutesBeforeStart = (startMs - nowMs) / (60 * 1000);
   if (minutesBeforeStart >= 5 && minutesBeforeStart <= 10) {
-    return { label: 'Commence bientôt', textClass: 'text-[var(--player-warning)]' };
+    return { label: language === 'fr' ? 'Commence bientôt' : 'Starting soon', textClass: 'text-[var(--player-warning)]' };
   }
 
-  return { label: 'Prochainement', textClass: 'text-[var(--player-success)]' };
+  return { label: language === 'fr' ? 'Prochainement' : 'Upcoming', textClass: 'text-[var(--player-success)]' };
 }
 
 function dayKey(dateIso: string): string {
@@ -488,7 +525,7 @@ function dayKey(dateIso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function buildBoardRows(events: LocalCalendarOccurrence[], nowMs: number): PlayerBoardRow[] {
+function buildBoardRows(events: LocalCalendarOccurrence[], nowMs: number, locale: string): PlayerBoardRow[] {
   const rows: PlayerBoardRow[] = [];
   const todayKey = dayKey(new Date(nowMs).toISOString());
   let lastDay: string | null = null;
@@ -497,7 +534,7 @@ function buildBoardRows(events: LocalCalendarOccurrence[], nowMs: number): Playe
     const eventDay = dayKey(event.startAt);
     const shouldInsertDate = (lastDay === null && eventDay !== todayKey) || (lastDay !== null && eventDay !== lastDay);
     if (shouldInsertDate) {
-      rows.push({ kind: 'date', dateLabel: formatDayLabelFr(event.startAt) });
+      rows.push({ kind: 'date', dateLabel: formatDayLabel(event.startAt, locale) });
     }
     rows.push({ kind: 'event', event });
     lastDay = eventDay;
@@ -506,10 +543,10 @@ function buildBoardRows(events: LocalCalendarOccurrence[], nowMs: number): Playe
   return rows;
 }
 
-async function postHeartbeat(baseUrl: string, identity: PlayerIdentity, os: string, clientIp: string, playerVersion: string): Promise<PlayerCommandPayload | null> {
+async function postHeartbeat(baseUrl: string, identity: PlayerIdentity, os: string, clientIp: string, playerVersion: string, latestSystemUsage: SystemUsageSnapshot | null): Promise<PlayerCommandPayload | null> {
   const startedAtMs = Date.now();
   try {
-    const telemetry = await collectPlayerTelemetry(playerVersion, startedAtMs);
+    const telemetry = await collectPlayerTelemetry(playerVersion, startedAtMs, latestSystemUsage);
     const response = await fetch(`${baseUrl}/api/player/heartbeat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -598,7 +635,8 @@ async function startPairingPin(baseUrl: string, identity: PlayerIdentity, os: st
     const expiresAt = String(payload?.expiresAt || '').trim();
     return {
       pin,
-      expiresAt
+      expiresAt,
+      os: String(payload?.os || os || '').trim() || 'Unknown'
     };
   } catch {
     return null;
@@ -606,6 +644,7 @@ async function startPairingPin(baseUrl: string, identity: PlayerIdentity, os: st
 }
 
 export function Player() {
+  const { language, locale, setLanguage, t } = useTranslation();
   const query = useMemo(() => new URLSearchParams(window.location.search), []);
   const instanceId = query.get('instance') || '1';
   const forcedDeviceId = query.get('deviceId') || undefined;
@@ -633,6 +672,17 @@ export function Player() {
   const [groupTheme, setGroupTheme] = useState<GroupThemeSettings>(DEFAULT_GROUP_THEME);
   const [pairingPin, setPairingPin] = useState<PairingPinPayload | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [desktopSettingsSupported, setDesktopSettingsSupported] = useState(false);
+  const [showDesktopSettings, setShowDesktopSettings] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState('');
+  const [playerSettings, setPlayerSettings] = useState<PlayerRuntimeSettings>({
+    playerUrl: `${window.location.origin}/player`,
+    instanceId,
+    launchFullscreen: true,
+    autoStartOnLogin: false
+  });
+  const latestSystemUsageRef = useRef<SystemUsageSnapshot | null>(null);
   const lastSyncOkRef = useRef<number>(Date.now());
   const footerMarqueeTrackRef = useRef<HTMLDivElement | null>(null);
   const boardScrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -674,6 +724,38 @@ export function Player() {
   }, [effectiveTheme]);
 
   useEffect(() => {
+    const canManageSettings = Boolean(window.playerDesktopApi?.loadSettings && window.playerDesktopApi?.saveSettings);
+    if (!canManageSettings) {
+      setDesktopSettingsSupported(false);
+      return;
+    }
+
+    let active = true;
+    window.playerDesktopApi?.loadSettings?.()
+      .then((settings) => {
+        if (!active) return;
+        setDesktopSettingsSupported(true);
+        if (!active || !settings) return;
+        setPlayerSettings((previous) => ({
+          ...previous,
+          ...settings,
+          instanceId: String(settings.instanceId || previous.instanceId || instanceId).trim() || instanceId,
+          playerUrl: String(settings.playerUrl || previous.playerUrl).trim() || `${window.location.origin}/player`,
+          launchFullscreen: settings.launchFullscreen !== false,
+          autoStartOnLogin: Boolean(settings.autoStartOnLogin)
+        }));
+      })
+      .catch(() => {
+        if (!active) return;
+        setDesktopSettingsSupported(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [instanceId]);
+
+  useEffect(() => {
     const base = getClientEnv('VITE_ADMIN_API_BASE');
     const resolvedBase = base || window.location.origin;
     setAdminBase(resolvedBase);
@@ -685,6 +767,11 @@ export function Player() {
     let interval: ReturnType<typeof setInterval> | null = null;
 
     const bootstrap = async () => {
+      const desktopIdentity = await window.playerDesktopApi?.loadIdentity(instanceId).catch(() => null);
+      if (desktopIdentity?.deviceId && desktopIdentity?.token) {
+        localStorage.setItem(identityKey, JSON.stringify(desktopIdentity));
+      }
+
       await syncLocalStorageKeyFromSystem(identityKey).catch(() => false);
       await hydrateLocalStorageKeyFromDb(identityKey).catch(() => undefined);
 
@@ -692,6 +779,7 @@ export function Player() {
       if (active) {
         setIdentity(id);
       }
+      await window.playerDesktopApi?.saveIdentity(instanceId, id).catch(() => false);
       await mirrorLocalStorageKeyToDb(identityKey).catch(() => undefined);
 
       const apiIsReachable = await canReachFunctionalApi(resolvedBase);
@@ -734,7 +822,14 @@ export function Player() {
         return;
       }
 
-      const command = await postHeartbeat(resolvedBase, id, detectedOs, playerClientIp, playerVersion);
+      const command = await postHeartbeat(
+        resolvedBase,
+        id,
+        detectedOs,
+        playerClientIp,
+        playerVersion,
+        latestSystemUsageRef.current
+      );
       if (command) {
         await sendCommandAck(resolvedBase, id, command, 'done');
         window.location.reload();
@@ -833,6 +928,67 @@ export function Player() {
     window.addEventListener('resize', close);
     return () => window.removeEventListener('resize', close);
   }, [showMobileMenu]);
+
+  useEffect(() => {
+    const wsUrl = getSystemWsUrl('/ws/system-sync');
+    let socket: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    const connect = () => {
+      if (stopped) return;
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(String(event.data || '{}')) as {
+            type?: string;
+            payload?: {
+              at?: string;
+              cpuPercent?: number;
+              memoryPercent?: number;
+              networkMbps?: number;
+              network?: {
+                selectedInterface?: {
+                  iface?: string;
+                  descriptor?: string;
+                };
+              };
+            };
+          };
+
+          if (payload?.type === 'system-usage' && payload.payload && typeof payload.payload === 'object') {
+            latestSystemUsageRef.current = {
+              at: String(payload.payload.at || ''),
+              cpuPercent: Number(payload.payload.cpuPercent || 0),
+              memoryPercent: Number(payload.payload.memoryPercent || 0),
+              networkMbps: Number(payload.payload.networkMbps || 0),
+              networkInterface: String(payload.payload.network?.selectedInterface?.iface || payload.payload.network?.selectedInterface?.descriptor || '').trim()
+            };
+          }
+        } catch {
+          // ignore malformed payloads
+        }
+      };
+
+      socket.onclose = () => {
+        if (stopped) return;
+        reconnectTimer = setTimeout(connect, 1200);
+      };
+
+      socket.onerror = () => {
+        socket?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      socket?.close();
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setClockNow(new Date()), 1000);
@@ -1010,7 +1166,7 @@ export function Player() {
       });
     const deduped = keepSingleUpcomingOccurrencePerSeries(activeRaw, now);
     const active = selectBoardDisplayWindow(deduped, now);
-    setBoardRows(buildBoardRows(active, now));
+    setBoardRows(buildBoardRows(active, now, locale));
 
     const activeIds = new Set(active.map((event) => event.id));
     const currentlyVisibleIds = new Set(visibleRows.map((event) => event.id));
@@ -1081,9 +1237,9 @@ export function Player() {
     return `${adminBase}/screens`;
   }, [adminBase, identity]);
 
-  const formatDateTime = (value: string) => new Date(value).toLocaleString('fr-FR');
-  const formatDateOnly = (value: string) => new Date(value).toLocaleDateString('fr-FR');
-  const formatTimeOnly = (value: string) => new Date(value).toLocaleTimeString('fr-FR');
+  const formatDateTime = (value: string) => new Date(value).toLocaleString(locale);
+  const formatDateOnly = (value: string) => new Date(value).toLocaleDateString(locale);
+  const formatTimeOnly = (value: string) => new Date(value).toLocaleTimeString(locale);
 
   const roomById = (roomId: string) => rooms.find((room) => room.id === roomId);
 
@@ -1096,8 +1252,8 @@ export function Player() {
   }) ?? null;
 
   const nextEvent = visibleRows.find((event) => event.status !== 'cancelled' && new Date(event.startAt).getTime() > Date.now()) ?? null;
-  const headerDateLabel = formatHeaderDateFr(clockNow);
-  const centeredTitle = layout?.headerText?.trim() || assignedScreen?.name || 'Digital Signage Player';
+  const headerDateLabel = formatHeaderDate(clockNow, locale);
+  const centeredTitle = layout?.headerText?.trim() || t('player.titleFallback');
   const isLowVisionTemplate = (layout?.displayTemplate ?? 'classic') === 'low-vision';
   const footerLogoListKey = JSON.stringify(layout?.footerLogos ?? []);
 
@@ -1254,7 +1410,7 @@ export function Player() {
       const current = items[currentIndex % items.length] || items[0];
       if (!current) return;
 
-      if (current.kind !== 'image') return;
+      if (current.kind !== 'image' && current.kind !== 'video' && current.kind !== 'iframe') return;
 
       const timer = window.setTimeout(() => {
         goToNextMedia(zoneId);
@@ -1373,7 +1529,7 @@ export function Player() {
         const embedHtml = fitIframeEmbedToZone(rawSource);
         return (
           <div
-            className={`${mediaClassName} overflow-hidden rounded-[12px] border border-[var(--player-border-strong)] [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:max-w-full [&_iframe]:max-h-full`}
+            className={`${mediaClassName} overflow-hidden [&_iframe]:w-full [&_iframe]:h-full [&_iframe]:max-w-full [&_iframe]:max-h-full`}
             dangerouslySetInnerHTML={{ __html: embedHtml }}
           />
         );
@@ -1385,7 +1541,7 @@ export function Player() {
         return (
           <video
             src={iframeSource}
-            className={`${mediaClassName} object-contain rounded-[12px] border border-[var(--player-border-strong)]`}
+            className={`${mediaClassName} object-contain`}
             muted
             autoPlay
             onEnded={() => goToNextMedia(zone.id)}
@@ -1399,7 +1555,7 @@ export function Player() {
         <iframe
           src={iframeSource}
           title={`media-${zone.id}`}
-          className={`${mediaClassName} rounded-[12px] border border-[var(--player-border-strong)] overflow-hidden`}
+          className={`${mediaClassName} overflow-hidden`}
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
           referrerPolicy="no-referrer"
@@ -1409,23 +1565,23 @@ export function Player() {
 
     if (current.kind === 'image') {
       const source = current.source;
-      if (!source) return <p className="text-[var(--player-muted)]">Chargement du média…</p>;
+      if (!source) return <p className="text-[var(--player-muted)]">{t('player.mediaLoading')}</p>;
       return (
         <img
           src={source}
           alt={zone.name}
-          className={`${mediaClassName} object-contain rounded-[12px] border border-[var(--player-border-strong)]`}
+          className={`${mediaClassName} object-contain`}
         />
       );
     }
 
     if (current.kind === 'video') {
       const source = current.source;
-      if (!source) return <p className="text-[var(--player-muted)]">Chargement du média…</p>;
+      if (!source) return <p className="text-[var(--player-muted)]">{t('player.mediaLoading')}</p>;
       return (
         <video
           src={source}
-          className={`${mediaClassName} object-contain rounded-[12px] border border-[var(--player-border-strong)]`}
+          className={`${mediaClassName} object-contain`}
           muted
           autoPlay
           onEnded={() => goToNextMedia(zone.id)}
@@ -1460,7 +1616,7 @@ export function Player() {
                   <img
                     key={`${logo}-${index}`}
                     src={src}
-                    alt="Logo entreprise"
+                    alt={t('player.companyLogo')}
                     className={`${isLowVisionTemplate ? 'h-20' : 'h-12'} w-auto object-contain opacity-95`}
                     loading="eager"
                   />
@@ -1474,8 +1630,155 @@ export function Player() {
   );
 
   if (!identity || mode === 'loading') {
-    return <div className="min-h-screen bg-[var(--player-bg)] text-[var(--player-fg)] flex items-center justify-center">Initialisation du player…</div>;
+    return <div className="min-h-screen bg-[var(--player-bg)] text-[var(--player-fg)] flex items-center justify-center">{t('player.loading')}</div>;
   }
+
+  const renderDesktopSettingsNotch = () => {
+    if (!desktopSettingsSupported) return null;
+
+    const saveDesktopSettings = async () => {
+      const trimmedUrl = playerSettings.playerUrl.trim();
+      const trimmedInstance = playerSettings.instanceId.trim();
+
+      if (!trimmedUrl) {
+        setSettingsFeedback('URL du player requise.');
+        return;
+      }
+
+      if (!trimmedInstance) {
+        setSettingsFeedback('Instance requise.');
+        return;
+      }
+
+      setSettingsSaving(true);
+      setSettingsFeedback('');
+      try {
+        const payload: PlayerRuntimeSettings = {
+          playerUrl: trimmedUrl,
+          instanceId: trimmedInstance,
+          launchFullscreen: playerSettings.launchFullscreen,
+          autoStartOnLogin: playerSettings.autoStartOnLogin
+        };
+
+        const saved = await window.playerDesktopApi?.saveSettings?.(payload);
+        if (saved) {
+          setPlayerSettings((previous) => ({
+            ...previous,
+            ...saved,
+            playerUrl: String(saved.playerUrl || payload.playerUrl).trim() || payload.playerUrl,
+            instanceId: String(saved.instanceId || payload.instanceId).trim() || payload.instanceId,
+            launchFullscreen: saved.launchFullscreen !== false,
+            autoStartOnLogin: Boolean(saved.autoStartOnLogin)
+          }));
+        }
+
+        await window.playerDesktopApi?.applySettings?.();
+        setSettingsFeedback('Paramètres enregistrés et appliqués.');
+      } catch {
+        setSettingsFeedback('Impossible d\'enregistrer les paramètres.');
+      } finally {
+        setSettingsSaving(false);
+      }
+    };
+
+    return (
+      <>
+        <button
+          type="button"
+          aria-label="Ouvrir les paramètres player"
+          title="Paramètres player"
+          className="fixed right-4 bottom-4 z-[90] rounded-tl-xl rounded-tr-md rounded-bl-md rounded-br-xl border border-white/20 bg-black/55 p-2 text-white opacity-35 transition hover:opacity-90"
+          onClick={() => {
+            setSettingsFeedback('');
+            setShowDesktopSettings((value) => !value);
+          }}
+        >
+          <Settings size={18} />
+        </button>
+
+        {showDesktopSettings ? (
+          <div className="fixed inset-0 z-[95] bg-black/55 backdrop-blur-sm p-4 sm:p-6 flex items-end sm:items-center justify-end">
+            <div className="w-full sm:w-[440px] rounded-2xl border border-white/15 bg-[#0b1220]/95 p-4 sm:p-5 text-[var(--player-fg)] shadow-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Paramètres player</h3>
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white/80 hover:text-white"
+                  onClick={() => setShowDesktopSettings(false)}
+                >
+                  Fermer
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm text-white/85">
+                  URL du player
+                  <input
+                    type="url"
+                    value={playerSettings.playerUrl}
+                    onChange={(event) => setPlayerSettings((previous) => ({ ...previous, playerUrl: event.target.value }))}
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[var(--player-accent)]"
+                    placeholder="http://127.0.0.1:4173/player"
+                  />
+                </label>
+
+                <label className="block text-sm text-white/85">
+                  Instance player
+                  <input
+                    type="text"
+                    value={playerSettings.instanceId}
+                    onChange={(event) => setPlayerSettings((previous) => ({ ...previous, instanceId: event.target.value }))}
+                    className="mt-1 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[var(--player-accent)]"
+                    placeholder="windows-player"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-white/90">
+                  <input
+                    type="checkbox"
+                    checked={playerSettings.launchFullscreen}
+                    onChange={(event) => setPlayerSettings((previous) => ({ ...previous, launchFullscreen: event.target.checked }))}
+                  />
+                  Lancer en plein écran
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-white/90">
+                  <input
+                    type="checkbox"
+                    checked={playerSettings.autoStartOnLogin}
+                    onChange={(event) => setPlayerSettings((previous) => ({ ...previous, autoStartOnLogin: event.target.checked }))}
+                  />
+                  Démarrer automatiquement à l\'ouverture de session Windows
+                </label>
+              </div>
+
+              {settingsFeedback ? (
+                <p className="mt-3 text-xs text-[var(--player-accent)]">{settingsFeedback}</p>
+              ) : null}
+
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white/90"
+                  onClick={() => setShowDesktopSettings(false)}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={settingsSaving}
+                  className="rounded-lg bg-[var(--player-accent)] px-3 py-2 text-sm font-medium text-black disabled:opacity-70"
+                  onClick={saveDesktopSettings}
+                >
+                  {settingsSaving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  };
 
   if (mode === 'enroll') {
     const baseForQr = adminBase || window.location.origin;
@@ -1489,61 +1792,76 @@ export function Player() {
         <div className="mb-2 flex justify-end sm:hidden">
           <button
             type="button"
-            aria-label="Ouvrir le menu player"
+            aria-label={t('player.openMenu')}
             className="p-2 rounded-[12px] border border-[var(--player-border-strong)] bg-[var(--player-card-bg)]"
             onClick={() => setShowMobileMenu((value) => !value)}
           >
             {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
           </button>
+          <button
+            type="button"
+            className="ml-2 rounded-[12px] border border-[var(--player-border-strong)] bg-[var(--player-card-bg)] px-3 py-2 text-sm"
+            onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+          >
+            {language === 'fr' ? 'EN' : 'FR'}
+          </button>
         </div>
         {showMobileMenu ? (
           <div className="mb-3 sm:hidden rounded-[12px] border border-[var(--player-border-strong)] bg-[var(--player-card-bg)] p-3 text-sm text-[var(--player-muted)]">
-            <p className="font-semibold text-[var(--player-fg)]">Player</p>
-            <p>Device: {identity.deviceName}</p>
-            <p>ID: {identity.deviceId}</p>
+            <p className="font-semibold text-[var(--player-fg)]">{t('player.player')}</p>
+            <p>{t('player.device')}: {identity.deviceName}</p>
+            <p>{t('player.id')}: {identity.deviceId}</p>
             <button
               type="button"
               className="mt-2 inline-flex items-center gap-2 rounded-[10px] border border-[var(--player-border-strong)] px-3 py-2 text-[var(--player-fg)]"
               onClick={() => window.location.reload()}
             >
-              <RefreshCcw size={14} /> Redémarrer l&apos;affichage
+              <RefreshCcw size={14} /> {t('player.restartDisplay')}
             </button>
           </div>
         ) : null}
         <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="max-w-2xl w-full rounded-[16px] p-6 border bg-[var(--player-card-bg)] border-[var(--player-border-strong)] text-[var(--player-fg)]">
-            <h1 className="text-4xl mb-2 font-semibold">Liaison de l'écran</h1>
-            <div className="grid md:grid-cols-2 gap-6 items-start">
-              <div className="bg-white p-3 rounded-[12px] w-[256px] h-[256px] aspect-square overflow-hidden flex items-center justify-center">
+          <div className="w-[min(448px,100%)] min-h-[376px] rounded-[24px] p-4 sm:p-5 border border-white/25 bg-white/10 backdrop-blur-2xl shadow-[0_22px_64px_rgba(8,16,40,0.45)] text-[var(--player-fg)]">
+            <h1 className="text-2xl sm:text-3xl mb-3 font-semibold">{t('player.pairingTitle')}</h1>
+            <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4 items-start">
+              <div className="bg-white p-2 rounded-[12px] w-[160px] h-[160px] mx-auto sm:mx-0 aspect-square overflow-hidden flex items-center justify-center">
                 <img src={qr} alt="QR Code ajout device" className="w-full h-full aspect-square object-contain" />
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-2xl text-[var(--player-muted)]"><QrCode size={24} />Infos de liaison</div>
-                <p className="text-3xl"><span className="text-[var(--player-muted)]">PIN:</span> <span className="font-semibold text-[var(--player-accent)] tracking-wider">{pairingPin?.pin || '------'}</span></p>
-                <p className="text-xl text-[var(--player-muted)]">Expire: {pairingPin?.expiresAt ? new Date(pairingPin.expiresAt).toLocaleTimeString('fr-FR') : '—'}</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-base sm:text-lg text-[var(--player-muted)]"><QrCode size={18} />{t('player.pairingInfo')}</div>
+                <p className="text-2xl sm:text-3xl"><span className="text-[var(--player-muted)]">{t('player.pin')}:</span> <span className="font-semibold text-[var(--player-accent)] tracking-wider">{pairingPin?.pin || '------'}</span></p>
+                <p className="text-sm sm:text-base text-[var(--player-muted)]">{t('player.expires')}: {pairingPin?.expiresAt ? new Date(pairingPin.expiresAt).toLocaleTimeString(locale) : '—'}</p>
+                <p className="text-sm sm:text-base text-[var(--player-muted)]">{t('player.requestOs')}: <span className="text-[var(--player-fg)]">{pairingPin?.os || detectedOs}</span></p>
               </div>
             </div>
           </div>
         </div>
         {renderFooterMarquee()}
+        {renderDesktopSettingsNotch()}
       </div>
     );
   }
 
   return (
     <div className="h-[100dvh] overflow-hidden p-2 sm:p-6 bg-[var(--player-bg)] text-[var(--player-fg)] flex flex-col">
-      <div className="relative flex items-center justify-between mb-6 min-h-[56px]">
-        <div>
-          <h1 className={`${isLowVisionTemplate ? 'text-6xl' : 'text-3xl'} font-semibold leading-none`}>{clockNow.toLocaleTimeString('fr-FR')}</h1>
-          <p className={`${isLowVisionTemplate ? 'text-3xl' : 'text-sm'} text-[var(--player-muted)] mt-1`}>{headerDateLabel}</p>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="shrink-0 leading-tight">
+            <div className={`font-semibold tabular-nums ${isLowVisionTemplate ? 'text-3xl' : 'text-base'} text-[var(--player-fg)]`}>
+              {clockNow.toLocaleTimeString(locale)}
+            </div>
+            <div className={`${isLowVisionTemplate ? 'text-xl' : 'text-xs'} text-[var(--player-muted)]`}>
+              {headerDateLabel}
+            </div>
+          </div>
+          <h2 className={`min-w-0 max-w-[75%] break-words [overflow-wrap:anywhere] ${isLowVisionTemplate ? 'text-4xl' : 'text-xl'} font-semibold text-[var(--player-accent)]`}>{centeredTitle}</h2>
         </div>
-        <h2 className={`absolute left-1/2 -translate-x-1/2 text-center min-w-0 max-w-[65%] break-words [overflow-wrap:anywhere] ${isLowVisionTemplate ? 'text-4xl' : 'text-xl'} font-semibold text-[var(--player-accent)]`}>{centeredTitle}</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {online ? <Wifi size={isLowVisionTemplate ? 28 : 16} className="text-[var(--player-success)]" /> : <WifiOff size={isLowVisionTemplate ? 28 : 16} className="text-[var(--player-danger)]" />}
-          <span className={`${online ? 'text-[var(--player-success)]' : 'text-[var(--player-danger)]'} ${isLowVisionTemplate ? 'text-2xl font-medium' : ''}`}>{online ? 'Connecté' : 'Déconnecté'}</span>
+          <span className={`${online ? 'text-[var(--player-success)]' : 'text-[var(--player-danger)]'} ${isLowVisionTemplate ? 'text-2xl font-medium' : ''}`}>{online ? t('topbar.connected') : t('topbar.disconnected')}</span>
           <button
             type="button"
-            aria-label="Menu player"
+            aria-label={t('player.menu')}
             className="sm:hidden p-2 rounded-[12px] border border-[var(--player-border-strong)] bg-[var(--player-card-bg)]"
             onClick={() => setShowMobileMenu((value) => !value)}
           >
@@ -1554,23 +1872,23 @@ export function Player() {
 
       {showMobileMenu ? (
         <div className="mb-3 sm:hidden rounded-[12px] border border-[var(--player-border-strong)] bg-[var(--player-card-bg)] p-3 text-sm text-[var(--player-muted)]">
-          <p className="font-semibold text-[var(--player-fg)]">Actions</p>
-          <p>Écran: {assignedScreen?.name || identity.deviceName}</p>
-          <p>Device ID: {identity.deviceId}</p>
+          <p className="font-semibold text-[var(--player-fg)]">{t('player.actions')}</p>
+          <p>{t('player.screen')}: {assignedScreen?.name || '—'}</p>
+          <p>{t('player.deviceId')}: {identity.deviceId}</p>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-[10px] border border-[var(--player-border-strong)] px-3 py-2 text-[var(--player-fg)]"
               onClick={() => window.location.reload()}
             >
-              <RefreshCcw size={14} /> Recharger
+              <RefreshCcw size={14} /> {t('player.reload')}
             </button>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-[10px] border border-[var(--player-border-strong)] px-3 py-2 text-[var(--player-fg)]"
               onClick={() => setShowMobileMenu(false)}
             >
-              Fermer
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -1580,9 +1898,9 @@ export function Player() {
       {!layout ? (
         <div className="space-y-4">
           <div className="border rounded-[16px] p-10 text-center bg-[var(--player-card-bg)] border-[var(--player-border-strong)] text-[var(--player-fg)]">
-            <p className="text-lg mb-3 text-[var(--player-muted)]">Aucun layout assigné</p>
-            <p className="text-base mb-4 text-[var(--player-accent)] break-words [overflow-wrap:anywhere]">Device: {assignedScreen?.name || identity.deviceName}</p>
-            <h2 className="text-6xl font-semibold mb-2">{clockNow.toLocaleTimeString('fr-FR')}</h2>
+            <p className="text-lg mb-3 text-[var(--player-muted)]">{t('player.noLayout')}</p>
+            <p className="text-base mb-4 text-[var(--player-accent)] break-words [overflow-wrap:anywhere]">{t('player.device')}: {assignedScreen?.name || identity.deviceName}</p>
+            <h2 className="text-6xl font-semibold mb-2">{clockNow.toLocaleTimeString(locale)}</h2>
             <p className="text-xl text-[var(--player-muted)]">{headerDateLabel}</p>
           </div>
         </div>
@@ -1594,12 +1912,12 @@ export function Player() {
                 <div className="overflow-x-auto">
                   <div className={isLowVisionTemplate ? 'min-w-[1800px]' : 'min-w-[1200px]'}>
                     <div className={`grid grid-cols-6 [&>div]:min-w-0 [&>div]:text-center [&>div]:whitespace-normal [&>div]:break-words [&>div]:[overflow-wrap:anywhere] [&>div]:leading-tight uppercase tracking-wide text-[var(--player-muted)] bg-[#21293a] ${isLowVisionTemplate ? 'px-6 py-5 text-3xl font-black [&>div]:min-w-[260px]' : 'px-4 py-3 text-xs font-bold'}`}>
-                      <div>Nom</div>
-                      <div>Salle</div>
-                      <div>Emplacement</div>
-                      <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>Date et heure de début</div>
-                      <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>Date et heure de fin</div>
-                      <div>Statut</div>
+                      <div>{t('player.name')}</div>
+                      <div>{t('player.room')}</div>
+                      <div>{t('player.location')}</div>
+                      <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>{t('player.startAt')}</div>
+                      <div className={isLowVisionTemplate ? 'whitespace-normal' : 'whitespace-nowrap'}>{t('player.endAt')}</div>
+                      <div>{t('player.status')}</div>
                     </div>
                     <div
                       ref={boardScrollContainerRef}
@@ -1607,7 +1925,7 @@ export function Player() {
                     >
                       <div className="divide-y divide-[var(--player-divider)]">
                         {visibleRows.length === 0 ? (
-                          <div className={`${isLowVisionTemplate ? 'p-6 text-3xl' : 'p-6'} text-[var(--player-muted)]`}>Aucun événement pour le moment.</div>
+                          <div className={`${isLowVisionTemplate ? 'p-6 text-3xl' : 'p-6'} text-[var(--player-muted)]`}>{t('player.noEvents')}</div>
                         ) : (
                           boardRows.map((row, index) => {
                           if (row.kind === 'date') {
@@ -1632,7 +1950,7 @@ export function Player() {
                           const now = Date.now();
                           const start = new Date(event.startAt).getTime();
                           const end = event.endAt ? new Date(event.endAt).getTime() : start + 60 * 60 * 1000;
-                          const status = getEventStatus(start, end, now, event.status);
+                          const status = getEventStatus(start, end, now, language, event.status);
                           const isCancelled = event.status === 'cancelled';
 
                           return (
@@ -1707,8 +2025,8 @@ export function Player() {
                   <p className={`${isLowVisionTemplate ? 'text-xl' : 'text-sm'} mb-1 text-[var(--player-muted)]`}>{zone.type}</p>
                   <h3 className={`${isLowVisionTemplate ? 'text-3xl' : ''} text-[var(--player-fg)] font-semibold mb-2 break-words [overflow-wrap:anywhere]`}>{zone.name}</h3>
                   {zone.type === 'media' ? (
-                    <div className="w-full min-h-[40vh] flex items-center justify-center">
-                      {renderMediaZoneContent(zone, 'w-full h-full max-w-full max-h-full')}
+                    <div className={`w-full flex items-center justify-center ${layout.zones.length === 1 ? 'h-[calc(100dvh-240px)] min-h-[55vh]' : 'min-h-[40vh]'}`}>
+                      {renderMediaZoneContent(zone, 'w-full h-full max-w-full max-h-full rounded-none border-0')}
                     </div>
                   ) : (
                     <p className={`${isLowVisionTemplate ? 'text-2xl leading-10' : ''} text-[var(--player-fg)] whitespace-pre-wrap`}>{zone.content || 'Aucun contenu renseigné'}</p>
@@ -1723,6 +2041,7 @@ export function Player() {
       </div>
 
       {renderFooterMarquee()}
+      {renderDesktopSettingsNotch()}
     </div>
   );
 }

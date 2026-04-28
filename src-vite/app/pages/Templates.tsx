@@ -4,6 +4,7 @@ import { GlassCard } from '../components/GlassCard';
 import { GlassButton } from '../components/GlassButton';
 import { type LayoutModel } from '../../shared/layoutRegistry';
 import { listLayoutsFromApi, upsertLayoutFromApi } from '../../services/layoutApiService';
+import { useTranslation } from '../i18n';
 
 interface TemplatePreset {
   id: string;
@@ -99,6 +100,7 @@ const presets: TemplatePreset[] = [
 ];
 
 export function Templates() {
+  const { t } = useTranslation();
   const [layouts, setLayouts] = useState<LayoutModel[]>([]);
 
   useEffect(() => {
@@ -115,8 +117,8 @@ export function Templates() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Templates</h1>
-          <p className="text-[#9ca3af]">Créez rapidement des layouts personnalisés (incluant Room Door Display)</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('templates.title')}</h1>
+          <p className="text-[#9ca3af]">{t('templates.subtitle')}</p>
         </div>
       </div>
 
@@ -134,7 +136,7 @@ export function Templates() {
             </div>
             <GlassButton className="w-full" onClick={() => useTemplate(preset)}>
               <Wand2 size={16} className="mr-2" />
-              Utiliser ce template
+              {t('templates.useTemplate')}
             </GlassButton>
           </GlassCard>
         ))}
@@ -143,10 +145,10 @@ export function Templates() {
       <GlassCard className="p-6">
         <div className="flex items-center gap-2 mb-3">
           <Layout size={18} className="text-[#22c55e]" />
-          <h2 className="text-[#e5e7eb]">Layouts générés</h2>
+          <h2 className="text-[#e5e7eb]">{t('templates.generatedLayouts')}</h2>
         </div>
         {layouts.length === 0 ? (
-          <p className="text-[#9ca3af]">Aucun layout généré depuis les templates.</p>
+          <p className="text-[#9ca3af]">{t('templates.noneGenerated')}</p>
         ) : (
           <ul className="space-y-2">
             {layouts.map((layout) => (

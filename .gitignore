@@ -12,6 +12,27 @@ yarn-error.log*
 lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+# ─── Database & Backups ──────────────────────────────────────
+database/*.db
+database/*.sqlite
+database/*.backup.json
+database/backups/
+database/system-db.json
+database/db.json
+
+# ─── Monitoring & Runtime State ──────────────────────────────
+database/update-runtime-state.json
+database/connected-clients.json
+database/system-usage.json
+
+# ─── Downloads & Assets ──────────────────────────────────────
+public/downloads/
+storage/assets/
+storage/cache/
+storage/screens/
+storage/logs/
+
+
 # ─── Runtime & Temp Data ─────────────────────────────────────
 pids/
 *.pid
@@ -35,6 +56,12 @@ build/Release/
 .cache/
 .temp/
 
+# ─── Electron ────────────────────────────────────────────────
+electron/dist/
+electron/out/
+electron/build/
+electron/*.log
+
 # ─── Cache & Build Info ──────────────────────────────────────
 *.tsbuildinfo
 .nyc_output/
@@ -54,6 +81,10 @@ RELEASE_NOTES.md
 .env.*.local
 .env.production.local
 .env.development.local
+
+# ─── Legacy / Next.js (Deprecated) ───────────────────────────
+legacy/
+scripts/legacy/
 
 # ─── Legacy / Next.js (Deprecated) ───────────────────────────
 next-env.d.ts
@@ -104,7 +135,7 @@ typedoc-output/
 
 # ─────────────────────────────────────────────────────────────
 # ✅ KEEP: Production Code & Essential Files
-# ✅ Keep: src-vite/, scripts/, kiosk-agent-cpp/, tests/
+# ✅ Keep: src-vite/, scripts/, tests/
 # ✅ Keep: prisma/, public/, storage/, database/schema
 # ✅ Keep: .github/, docs/, vite.config.ts, package.json
 # ✅ Keep: .vscode/extensions.json, launch configs for dev
@@ -165,3 +196,5 @@ build/
 docs-api/
 dist/
 .next/
+docs-api/
+release/

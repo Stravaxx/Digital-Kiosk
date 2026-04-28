@@ -1,43 +1,53 @@
-# Mode dev/prod (tout-en-un)
+# Run Modes
 
-## Démarrage développement complet
+## FR
 
-Commande unique:
+### Web development
 
 ```bash
 npm run dev
 ```
 
-Ce que la commande initialise automatiquement:
+- API: `http://127.0.0.1:8787`
+- Admin: `http://127.0.0.1:4173`
+- Player: `http://127.0.0.1:4173/player?instance=1`
 
-- **API**: `http://127.0.0.1:8787`
-- **Frontend Admin**: `http://127.0.0.1:5173`
-- **Player** (même frontend): `http://127.0.0.1:5173/player?instance=1`
-- **Documentation** (pré-générée et servie par Vite): `http://127.0.0.1:5173/docs/`
-- **Documentation API** (TypeDoc intégré): `http://127.0.0.1:5173/docs/api/index.html`
-
-## Démarrage production complet
-
-Commande unique:
+### Web production-like runtime
 
 ```bash
+npm run build
 npm run prod
 ```
 
-Ce que la commande initialise automatiquement:
+### Electron admin (dev)
 
-- build docs complet (`preprod`),
-- build frontend,
-- serveur API + frontend + player + docs.
+```bash
+npm run desktop
+```
 
-URL de référence en prod:
+### Electron admin (renderer build + local run)
 
-- **Admin**: `http://127.0.0.1:4173/`
-- **Player**: `http://127.0.0.1:4173/player?instance=1`
-- **Docs**: `http://127.0.0.1:4173/docs/`
-- **API docs**: `http://127.0.0.1:4173/docs/api/index.html`
+```bash
+npm run desktop:win
+```
 
-## Alias explicites
+### Electron player (fullscreen)
 
-- `npm run dev:all` → alias de `npm run dev`
-- `npm run prod:all` → alias de `npm run prod`
+```bash
+npm run desktop:player
+```
+
+### Windows packaging
+
+- `npm run package:admin:win`
+- `npm run package:player:win`
+
+## EN
+
+The project currently supports three runtime families:
+
+- web runtime for development and Node.js deployments,
+- Electron admin for local Windows supervision,
+- Electron player for dedicated fullscreen signage playback.
+
+Use `npm run dev`, `npm run desktop`, or `npm run desktop:player` depending on the surface you need to validate.

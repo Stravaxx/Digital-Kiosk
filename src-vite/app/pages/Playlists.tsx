@@ -15,6 +15,7 @@ import {
   listPlaylistsFromApi,
   upsertPlaylistFromApi
 } from '../../services/playlistApiService';
+import { useTranslation } from '../i18n';
 
 const DEFAULT_IMAGE_DURATION = 15;
 const DEFAULT_IFRAME_DURATION = 20;
@@ -65,6 +66,7 @@ function createMarkdownEntry(markdown: string): PlaylistEntryModel {
 }
 
 export function Playlists() {
+  const { t } = useTranslation();
   const [playlists, setPlaylists] = useState<PlaylistModel[]>([]);
   const [editing, setEditing] = useState<PlaylistModel | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -239,22 +241,22 @@ export function Playlists() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Playlists</h1>
-          <p className="text-[#9ca3af]">Playlists média ordonnées (asset, URL, iframe, Markdown) pour le Player</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('playlists.pageTitle')}</h1>
+          <p className="text-[#9ca3af]">{t('playlists.pageHint')}</p>
         </div>
         <GlassButton onClick={createPlaylist}>
           <Plus size={18} className="mr-1" />
-          Nouvelle playlist
+          {t('playlists.new')}
         </GlassButton>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <GlassCard className="p-6">
-          <h2 className="text-lg text-[#e5e7eb] mb-4">Playlists enregistrées</h2>
+          <h2 className="text-lg text-[#e5e7eb] mb-4">{t('playlists.list')}</h2>
           {playlists.length === 0 ? (
             <div className="text-center py-16">
               <List size={56} className="mx-auto text-[#9ca3af] opacity-50 mb-3" />
-              <p className="text-[#9ca3af]">Aucune playlist pour le moment</p>
+              <p className="text-[#9ca3af]">{t('playlists.empty')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -285,13 +287,13 @@ export function Playlists() {
         </GlassCard>
 
         <GlassCard className="p-6">
-          <h2 className="text-lg text-[#e5e7eb] mb-4">Éditeur playlist</h2>
+          <h2 className="text-lg text-[#e5e7eb] mb-4">{t('playlists.builder')}</h2>
           {!editing ? (
             <p className="text-[#9ca3af]">Choisissez une playlist à éditer ou créez-en une nouvelle.</p>
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-[#e5e7eb] mb-2" htmlFor="playlist-name">Nom</label>
+                <label className="block text-[#e5e7eb] mb-2" htmlFor="playlist-name">{t('playlists.name')}</label>
                 <input
                   id="playlist-name"
                   value={editing.name}
@@ -301,7 +303,7 @@ export function Playlists() {
               </div>
 
               <div>
-                <label className="block text-[#e5e7eb] mb-2" htmlFor="playlist-description">Description</label>
+                <label className="block text-[#e5e7eb] mb-2" htmlFor="playlist-description">{t('playlists.description')}</label>
                 <textarea
                   id="playlist-description"
                   rows={2}
@@ -317,7 +319,7 @@ export function Playlists() {
                   checked={editing.loop}
                   onChange={(event) => setEditing({ ...editing, loop: event.target.checked })}
                 />
-                Lecture en boucle
+                {t('playlists.loop')}
               </label>
 
               <div className="space-y-3 border border-[rgba(255,255,255,0.12)] rounded-[12px] p-3 bg-[rgba(255,255,255,0.03)]">
@@ -325,7 +327,7 @@ export function Playlists() {
                 <div className="flex flex-wrap gap-2">
                   <GlassButton size="sm" onClick={() => setShowExplorer(true)}>
                     <Plus size={14} className="mr-1" />
-                    Asset local
+                    {t('playlists.addAsset')}
                   </GlassButton>
                 </div>
 
@@ -336,7 +338,7 @@ export function Playlists() {
                     className="md:col-span-2 bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[10px] px-3 py-2 text-[#e5e7eb]"
                     placeholder="URL média (image/vidéo/fichier)"
                   />
-                  <GlassButton size="sm" variant="ghost" onClick={addUrlToPlaylist} disabled={!newMediaUrl.trim()}>Ajouter URL</GlassButton>
+                  <GlassButton size="sm" variant="ghost" onClick={addUrlToPlaylist} disabled={!newMediaUrl.trim()}>{t('playlists.addUrl')}</GlassButton>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -346,7 +348,7 @@ export function Playlists() {
                     className="md:col-span-2 bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[10px] px-3 py-2 text-[#e5e7eb]"
                     placeholder="URL page web à afficher en iframe"
                   />
-                  <GlassButton size="sm" variant="ghost" onClick={addIframeToPlaylist} disabled={!newIframeUrl.trim()}>Ajouter iframe</GlassButton>
+                  <GlassButton size="sm" variant="ghost" onClick={addIframeToPlaylist} disabled={!newIframeUrl.trim()}>{t('playlists.addIframe')}</GlassButton>
                 </div>
 
                 <div className="space-y-2">
@@ -357,7 +359,7 @@ export function Playlists() {
                     popupTitle="Nouveau média Markdown"
                   />
                   <GlassButton size="sm" variant="ghost" onClick={addMarkdownToPlaylist} disabled={!newMarkdown.trim()}>
-                    Ajouter Markdown
+                    {t('playlists.addMarkdown')}
                   </GlassButton>
                 </div>
               </div>

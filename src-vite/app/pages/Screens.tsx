@@ -24,6 +24,7 @@ import {
 } from '../../shared/screenGroupRegistry';
 import { mirrorLocalStorageKeyToDb, syncLocalStorageKeyFromSystem } from '../../services/clientDbStorage';
 import { appendSystemLog } from '../../services/logService';
+import { useTranslation } from '../i18n';
 
 function sanitizeHexColor(value: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
@@ -31,6 +32,7 @@ function sanitizeHexColor(value: string): string {
 }
 
 export function Screens() {
+  const { t } = useTranslation();
   const [screens, setScreens] = useState<ScreenModel[]>([]);
   const [layouts, setLayouts] = useState<LayoutModel[]>([]);
   const [rooms, setRooms] = useState<RoomModel[]>([]);
@@ -380,8 +382,8 @@ export function Screens() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-3 text-center md:text-left">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Screens Management</h1>
-          <p className="text-[#9ca3af]">Gestion individuelle de plusieurs machines (enrôlement, approbation, layout)</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('screens.title')}</h1>
+          <p className="text-[#9ca3af]">{t('screens.subtitle')}</p>
         </div>
       </div>
 
@@ -392,16 +394,16 @@ export function Screens() {
       ) : null}
 
       <GlassCard className="p-4 space-y-3">
-        <h2 className="text-[#e5e7eb] text-base">Lier un appareil via PIN (QR ou saisie manuelle)</h2>
+        <h2 className="text-[#e5e7eb] text-base">{t('screens.pairTitle')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input
             value={pairingPin}
             onChange={(event) => setPairingPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
             className="bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.12)] rounded-[10px] px-3 py-2 text-[#e5e7eb] tracking-widest"
-            placeholder="PIN 6 chiffres"
-            aria-label="PIN 6 chiffres"
+            placeholder={t('screens.pinPlaceholder')}
+            aria-label={t('screens.pinPlaceholder')}
           />
-          <GlassButton onClick={claimPairing} disabled={pairingBusy}>{pairingBusy ? 'Liaison...' : 'Lier appareil'}</GlassButton>
+          <GlassButton onClick={claimPairing} disabled={pairingBusy}>{pairingBusy ? t('screens.pairing') : t('screens.pair')}</GlassButton>
         </div>
         {pairingMessage ? <p className="text-[#22c55e] text-sm">{pairingMessage}</p> : null}
         {pairingError ? <p className="text-[#ef4444] text-sm">{pairingError}</p> : null}
@@ -411,7 +413,7 @@ export function Screens() {
         <GlassCard className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[#9ca3af] text-sm mb-1">Total</div>
+              <div className="text-[#9ca3af] text-sm mb-1">{t('fleet.total')}</div>
               <div className="text-2xl text-[#e5e7eb] font-bold">{screens.length}</div>
             </div>
             <Monitor className="text-[#3b82f6]" size={32} />
@@ -421,7 +423,7 @@ export function Screens() {
         <GlassCard className="p-4 cursor-pointer" onClick={() => setFilter('pending')}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[#9ca3af] text-sm mb-1">Pending</div>
+              <div className="text-[#9ca3af] text-sm mb-1">{t('fleet.pending')}</div>
               <div className="text-2xl text-[#f59e0b] font-bold">{counts.pending}</div>
             </div>
             <Clock className="text-[#f59e0b]" size={32} />
@@ -431,7 +433,7 @@ export function Screens() {
         <GlassCard className="p-4 cursor-pointer" onClick={() => setFilter('online')}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[#9ca3af] text-sm mb-1">Online</div>
+              <div className="text-[#9ca3af] text-sm mb-1">{t('fleet.online')}</div>
               <div className="text-2xl text-[#22c55e] font-bold">{counts.online}</div>
             </div>
             <CheckCircle className="text-[#22c55e]" size={32} />
@@ -441,7 +443,7 @@ export function Screens() {
         <GlassCard className="p-4 cursor-pointer" onClick={() => setFilter('offline')}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[#9ca3af] text-sm mb-1">Offline</div>
+              <div className="text-[#9ca3af] text-sm mb-1">{t('fleet.offline')}</div>
               <div className="text-2xl text-[#ef4444] font-bold">{counts.offline}</div>
             </div>
             <WifiOff className="text-[#ef4444]" size={32} />
@@ -464,18 +466,18 @@ export function Screens() {
       {selectedScreenIds.length > 0 ? (
         <GlassCard className="p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[#e5e7eb] text-sm">{selectedScreenIds.length} écran(s) sélectionné(s)</span>
+            <span className="text-[#e5e7eb] text-sm">{selectedScreenIds.length} {t('screens.selectedScreens')}</span>
             <GlassButton size="sm" onClick={() => runBulkCommand('refresh')} disabled={bulkBusy}>Refresh</GlassButton>
             <GlassButton size="sm" onClick={() => runBulkCommand('reload')} disabled={bulkBusy}>Reload</GlassButton>
             <GlassButton size="sm" onClick={() => runBulkCommand('reboot')} disabled={bulkBusy}>Reboot</GlassButton>
             <GlassButton variant="danger" size="sm" onClick={runBulkRotateToken} disabled={bulkBusy}>Rotate Token</GlassButton>
-            <GlassButton variant="ghost" size="sm" onClick={() => setSelectedScreenIds([])} disabled={bulkBusy}>Clear</GlassButton>
+            <GlassButton variant="ghost" size="sm" onClick={() => setSelectedScreenIds([])} disabled={bulkBusy}>{t('screens.clear')}</GlassButton>
           </div>
         </GlassCard>
       ) : null}
 
       {filteredScreens.length === 0 ? (
-        <GlassCard className="p-6 text-center text-[#9ca3af]">Aucun écran pour ce filtre.</GlassCard>
+        <GlassCard className="p-6 text-center text-[#9ca3af]">{t('screens.noneForFilter')}</GlassCard>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredScreens.map((screen) => (
@@ -485,6 +487,9 @@ export function Screens() {
                   <h3 className="text-[#e5e7eb] font-medium">{screen.name}</h3>
                   <p className="text-[#9ca3af] text-sm">{screen.deviceId}</p>
                   <p className="text-[#9ca3af] text-xs">{screen.status}</p>
+                  {screen.status === 'pending' ? (
+                    <p className="text-[#93c5fd] text-xs">OS: {screen.os || 'Unknown'}</p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="inline-flex items-center gap-1 text-xs text-[#9ca3af]">
@@ -555,8 +560,8 @@ export function Screens() {
 
               {screen.status === 'pending' ? (
                 <div className="flex gap-2 mt-4">
-                  <GlassButton size="sm" className="flex-1" onClick={() => approveScreen(screen.id)}>Approuver</GlassButton>
-                  <GlassButton variant="ghost" size="sm" className="flex-1" onClick={() => rejectScreen(screen.id)}>Rejeter</GlassButton>
+                  <GlassButton size="sm" className="flex-1" onClick={() => approveScreen(screen.id)}>{t('screens.approve')}</GlassButton>
+                  <GlassButton variant="ghost" size="sm" className="flex-1" onClick={() => rejectScreen(screen.id)}>{t('screens.reject')}</GlassButton>
                 </div>
               ) : (
                 <div className="flex gap-2 mt-4">
@@ -590,7 +595,7 @@ export function Screens() {
                 <GlassButton
                   onClick={() => renameScreen(selectedScreen.id, nameDraftByScreen[selectedScreen.id] ?? selectedScreen.name)}
                 >
-                  Enregistrer
+                  {t('common.saveChanges')}
                 </GlassButton>
               </div>
             </div>
@@ -611,7 +616,7 @@ export function Screens() {
               <div className="text-[#9ca3af]">Dernier heartbeat</div><div className="text-[#e5e7eb]">{new Date(selectedScreen.lastHeartbeat).toLocaleString('fr-FR')}</div>
             </div>
             <div className="mt-6">
-              <GlassButton variant="ghost" className="w-full" onClick={() => setShowDetailsModal(false)}>Fermer</GlassButton>
+              <GlassButton variant="ghost" className="w-full" onClick={() => setShowDetailsModal(false)}>{t('common.close')}</GlassButton>
             </div>
           </GlassCard>
         </div>

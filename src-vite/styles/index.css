@@ -2,6 +2,20 @@
 @import './tailwind.css';
 @import './theme.css';
 
+.window-titlebar {
+	-webkit-app-region: drag;
+	user-select: none;
+}
+
+.window-titlebar .window-no-drag,
+.window-titlebar button,
+.window-titlebar a,
+.window-titlebar input,
+.window-titlebar select,
+.window-titlebar textarea {
+	-webkit-app-region: no-drag;
+}
+
 @keyframes rowFadeUpOut {
 	from {
 		opacity: 1;

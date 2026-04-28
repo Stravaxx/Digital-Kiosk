@@ -30,7 +30,7 @@ ws.on('open', () => {
       hostname: os.hostname(),
       resolution: '1920x1080',
       os: os.platform(),
-        version: '1.1.0'
+        version: '1.2.0'
     }
   }));
   renderStatus('Enregistré');

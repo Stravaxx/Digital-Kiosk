@@ -1,37 +1,39 @@
-# Player & Pairing PIN
+# Player & Pairing
 
-## Enrôlement
+## FR
 
-Le player génère un PIN de liaison temporaire.
+### Enrôlement
 
-Le token player est:
+Le player génère une identité durable composée d’un `deviceId`, d’un nom d’appareil et d’un token. Cette identité est conservée via:
 
-- sauvegardé localement,
-- rechargé au redémarrage,
-- gardé en mémoire pendant l’exécution.
+- `localStorage`,
+- IndexedDB / système KV si disponible,
+- stockage Electron dédié pour les shells Windows.
 
-## Liaison via QR code
+### Pairing PIN
 
-Le QR code redirige vers:
+1. Le player appelle `/api/player/pair/start`.
+2. Le backend renvoie un PIN temporaire à 6 chiffres.
+3. L’admin revendique ce PIN dans l’onglet Screens.
+4. Le player devient autorisé et passe en mode affichage.
 
-- `/screens?pin=<PIN>`
+### QR code
 
-Le champ PIN est automatiquement prérempli dans l’interface admin.
+Le QR code redirige vers `/screens?pin=<PIN>` pour pré-remplir le champ dans le panel admin.
 
-## Liaison manuelle
+### Ce qui a changé
 
-Dans l’onglet Screens:
+- la découverte réseau automatique n’est plus utilisée,
+- le flow de pairing repose sur PIN ou QR code,
+- le player Electron Windows recharge désormais correctement son token au redémarrage.
 
-- saisir le PIN à 6 chiffres,
-- cliquer `Lier appareil`.
+## EN
 
-Aucune saisie IP n’est requise.
+The player now keeps a durable identity made of `deviceId`, device name and token. That identity is restored from web storage and, on Windows Electron, from a dedicated local file store.
 
-## Important
+Pairing is PIN-based:
 
-La découverte automatique des players sur le réseau local est désactivée.
-
-Le seul mode de liaison supporté est:
-
-- PIN (saisie manuelle),
-- ou QR Code (pré-remplit le PIN côté admin).
+1. the player requests a temporary PIN,
+2. an admin claims it in Screens,
+3. the backend authorizes the player,
+4. the player receives its display context.

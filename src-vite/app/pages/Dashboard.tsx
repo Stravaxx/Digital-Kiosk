@@ -3,8 +3,10 @@ import { Monitor, FolderOpen, List, Calendar, Activity, AlertCircle, CheckCircle
 import { StatCard } from '../components/StatCard';
 import { GlassCard } from '../components/GlassCard';
 import { getSystemApiBase } from '../../services/systemApiBase';
+import { useTranslation } from '../i18n';
 
 export function Dashboard() {
+  const { t } = useTranslation();
   const [aboutOpen, setAboutOpen] = React.useState(false);
   const [aboutClosing, setAboutClosing] = React.useState(false);
   const [aboutTab, setAboutTab] = React.useState<'project' | 'tech' | 'build'>('project');
@@ -96,7 +98,7 @@ export function Dashboard() {
         ]);
 
         if (!meetingsRes.ok || !activityRes.ok || !screensRes.ok) {
-          throw new Error('Chargement dashboard échoué');
+          throw new Error(t('dashboard.error'));
         }
 
         const [meetings, activity, screensRows] = await Promise.all([
@@ -114,7 +116,7 @@ export function Dashboard() {
         setUpcomingMeetings([]);
         setRecentActivity([]);
         setScreens([]);
-        setDashboardLoadError('Connexion au serveur perdue ou réponse invalide. Vérifiez l’accès au serveur puis rechargez la page.');
+        setDashboardLoadError(t('dashboard.error'));
       }
     };
 

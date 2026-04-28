@@ -38,3 +38,22 @@
 - page `Logs` pour supervision,
 - endpoints `/api/logs` pour extraction/filtrage,
 - endpoint `/api/audit` pour journal d’audit opérationnel.
+
+## Mise a jour robuste
+
+- `npm run update:monitor` (cross-platform)
+- `npm run update:monitor:win` (PowerShell Windows)
+- `npm run update:monitor:linux` (shell Linux)
+
+Comportement du workflow:
+
+- active le mode maintenance,
+- lance le worker update detache,
+- ouvre la page `/updater`,
+- affiche le suivi read-only dans le terminal,
+- verifie les endpoints critiques API,
+- si echec (dont 4xx/5xx persistants), rollback code + restauration donnees.
+
+Verification API rapide:
+
+- `npm run api:verify`

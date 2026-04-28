@@ -14,6 +14,7 @@ import {
   type RoomModel,
   validateEventCapacity
 } from '../../shared/localCalendar';
+import { useTranslation } from '../i18n';
 
 interface EventForm {
   title: string;
@@ -264,6 +265,7 @@ function buildRecurrenceFromForm(form: EventForm): LocalCalendarEvent['recurrenc
 }
 
 export function Calendar() {
+  const { t, locale } = useTranslation();
   const { calendarSearch = '', setCalendarSearch } = useOutletContext<{
     calendarSearch?: string;
     setCalendarSearch?: (value: string) => void;
@@ -647,22 +649,22 @@ export function Calendar() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Calendrier local</h1>
-          <p className="text-[#9ca3af]">Les événements sont saisis localement. Le connecteur iCal sera ajouté plus tard.</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('calendar.title')}</h1>
+          <p className="text-[#9ca3af]">{t('calendar.subtitle')}</p>
         </div>
         <GlassButton onClick={openCreateModal}>
           <Plus size={20} className="inline mr-2" />
-          Ajouter un événement
+          {t('calendar.addEvent')}
         </GlassButton>
       </div>
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-[#9ca3af]">
-          Recherche active depuis la navbar{normalizedSearch ? ` : “${calendarSearch}”` : ' (aucun mot-clé)' }
+          {t('calendar.activeSearch')}{normalizedSearch ? ` : “${calendarSearch}”` : ` (${t('calendar.noKeyword')})` }
         </p>
         <GlassButton variant="ghost" onClick={() => setFiltersOpen(true)}>
           <SlidersHorizontal size={16} className="inline mr-2" />
-          Filtres
+          {t('calendar.filters')}
         </GlassButton>
       </div>
 
@@ -670,7 +672,7 @@ export function Calendar() {
         <button
           type="button"
           className="fixed inset-0 z-[94] bg-black/45"
-          aria-label="Fermer le panneau de filtres"
+          aria-label={t('calendar.closeFilterPanel')}
           onClick={() => setFiltersOpen(false)}
         />
       )}
@@ -679,12 +681,12 @@ export function Calendar() {
         className={`fixed right-0 top-16 z-[95] h-[calc(100vh-4rem)] w-[min(360px,92vw)] border-l border-[rgba(255,255,255,0.14)] bg-[rgba(15,23,42,0.96)] backdrop-blur-[20px] p-4 transition-transform duration-200 ${filtersOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[#e5e7eb] text-lg">Filtres calendrier</h3>
+          <h3 className="text-[#e5e7eb] text-lg">{t('calendar.filtersTitle')}</h3>
           <button
             type="button"
             onClick={() => setFiltersOpen(false)}
             className="p-2 rounded-[10px] hover:bg-[rgba(255,255,255,0.08)]"
-            aria-label="Fermer"
+            aria-label={t('common.close')}
           >
             <X size={16} className="text-[#9ca3af]" />
           </button>
@@ -692,7 +694,7 @@ export function Calendar() {
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="calendar-sort-overlay" className="block text-[#e5e7eb] mb-2">Tri</label>
+            <label htmlFor="calendar-sort-overlay" className="block text-[#e5e7eb] mb-2">{t('calendar.sort')}</label>
             <select
               id="calendar-sort-overlay"
               value={sortMode}
@@ -762,13 +764,13 @@ export function Calendar() {
                 </div>
               </>
             ) : (
-              <p className="text-sm text-[#9ca3af]">Aucune borne disponible (pas d’événements).</p>
+              <p className="text-sm text-[#9ca3af]">{t('calendar.noBounds')}</p>
             )}
           </div>
 
           <div className="pt-2">
             <GlassButton variant="ghost" className="w-full" onClick={resetAllFilters}>
-              Reset tous les filtres
+              {t('calendar.resetFilters')}
             </GlassButton>
           </div>
         </div>
@@ -776,20 +778,20 @@ export function Calendar() {
 
       {rooms.length === 0 && (
         <GlassCard className="p-6">
-          <p className="text-[#f59e0b]">Ajoutez d’abord une salle dans la section Salles avant de créer des événements.</p>
+          <p className="text-[#f59e0b]">{t('calendar.needRoom')}</p>
         </GlassCard>
       )}
       {timeline.length === 0 ? (
         <GlassCard className="p-6">
           <div className="text-center py-20">
             <CalendarIcon size={64} className="mx-auto text-[#9ca3af] opacity-50 mb-4" />
-            <h3 className="text-lg text-[#e5e7eb] mb-2">Aucun événement</h3>
-            <p className="text-[#9ca3af]">Créez votre premier événement avec salle et capacité.</p>
+            <h3 className="text-lg text-[#e5e7eb] mb-2">{t('calendar.noEvents')}</h3>
+            <p className="text-[#9ca3af]">{t('calendar.noEventsHint')}</p>
           </div>
         </GlassCard>
       ) : (
         <div className="space-y-4">
-          <h2 className="text-lg text-[#e5e7eb]">À venir ({filteredUpcomingEvents.length})</h2>
+          <h2 className="text-lg text-[#e5e7eb]">{t('calendar.upcoming')} ({filteredUpcomingEvents.length})</h2>
           {filteredUpcomingEvents.map((event) => (
             <GlassCard key={event.id} className="p-5">
               <div className="flex items-start justify-between gap-4">
@@ -801,7 +803,7 @@ export function Calendar() {
                   <p className="text-[#9ca3af]">{event.description}</p>
                   <div className="flex items-center gap-2 text-sm text-[#e5e7eb]">
                     <Clock size={14} />
-                    <span>{new Date(event.startAt).toLocaleString('fr-FR')}</span>
+                    <span>{new Date(event.startAt).toLocaleString(locale)}</span>
                   </div>
                   <div className="text-sm text-[#9ca3af]">Salle n°{event.roomNumber}</div>
                   <div className="flex items-center gap-2 text-sm text-[#9ca3af]">
@@ -855,9 +857,9 @@ export function Calendar() {
             </GlassCard>
           ))}
 
-          <h2 className="text-lg text-[#e5e7eb] pt-2">Passé ({filteredPastEvents.length})</h2>
+          <h2 className="text-lg text-[#e5e7eb] pt-2">{t('calendar.past')} ({filteredPastEvents.length})</h2>
           {filteredPastEvents.length === 0 ? (
-            <GlassCard className="p-5 text-[#9ca3af]">Aucun événement passé dans les 30 derniers jours.</GlassCard>
+            <GlassCard className="p-5 text-[#9ca3af]">{t('calendar.noPastEvents')}</GlassCard>
           ) : (
             filteredPastEvents.map((event) => (
               <GlassCard key={event.id} className="p-5 opacity-80">
@@ -867,7 +869,7 @@ export function Calendar() {
                     {event.status === 'cancelled' && (
                       <div className="text-xs text-[#ef4444] uppercase">Status: annulé</div>
                     )}
-                    <p className="text-[#9ca3af] text-sm">{new Date(event.startAt).toLocaleString('fr-FR')} → {new Date(event.endAt).toLocaleString('fr-FR')}</p>
+                    <p className="text-[#9ca3af] text-sm">{new Date(event.startAt).toLocaleString(locale)} → {new Date(event.endAt).toLocaleString(locale)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button

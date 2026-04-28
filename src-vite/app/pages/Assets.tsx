@@ -11,8 +11,10 @@ import {
   uploadAssets,
   type AssetRecord
 } from '../../services/assetService';
+import { useTranslation } from '../i18n';
 
 export function Assets() {
+  const { t } = useTranslation();
   const [showUpload, setShowUpload] = useState(false);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [busy, setBusy] = useState(false);
@@ -48,12 +50,12 @@ export function Assets() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-[#e5e7eb] mb-2">Assets Library</h1>
-          <p className="text-[#9ca3af]">Manage your media files and content</p>
+          <h1 className="text-2xl text-[#e5e7eb] mb-2">{t('assets.library')}</h1>
+          <p className="text-[#9ca3af]">{t('assets.manage')}</p>
         </div>
         <GlassButton onClick={() => setShowUpload(true)}>
           <Upload size={20} className="inline mr-2" />
-          Upload Assets
+          {t('assets.upload')}
         </GlassButton>
       </div>
 
@@ -61,11 +63,11 @@ export function Assets() {
         {assets.length === 0 ? (
           <div className="text-center py-20">
             <Upload size={64} className="mx-auto text-[#9ca3af] opacity-50 mb-4" />
-            <h3 className="text-lg text-[#e5e7eb] mb-2">Aucun asset uploadé</h3>
-            <p className="text-[#9ca3af] mb-6">Upload images, vidéos ou documents pour démarrer</p>
+            <h3 className="text-lg text-[#e5e7eb] mb-2">{t('assets.empty')}</h3>
+            <p className="text-[#9ca3af] mb-6">{t('assets.emptyHint')}</p>
             <GlassButton onClick={() => setShowUpload(true)}>
               <Upload size={20} className="inline mr-2" />
-              Upload premier asset
+              {t('assets.addFirst')}
             </GlassButton>
           </div>
         ) : (
@@ -93,7 +95,7 @@ export function Assets() {
                         }
                       }}
                     >
-                      <Eye size={14} />
+                      <Eye size={14} /> {t('assets.preview')}
                     </GlassButton>
                     <GlassButton
                       size="sm"
@@ -136,7 +138,7 @@ export function Assets() {
       {showUpload && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <GlassCard className="w-full max-w-lg p-6 m-4">
-            <h2 className="text-xl text-[#e5e7eb] mb-4">Upload Assets</h2>
+            <h2 className="text-xl text-[#e5e7eb] mb-4">{t('assets.uploadModalTitle')}</h2>
             <input
               ref={fileInputRef}
               type="file"
@@ -153,7 +155,7 @@ export function Assets() {
             >
               <Upload size={48} className="mx-auto text-[#9ca3af] mb-4" />
               <p className="text-[#e5e7eb] mb-2">Click to upload or drag and drop</p>
-              <p className="text-[#9ca3af] text-sm">Images, videos, PDFs, or HTML files</p>
+              <p className="text-[#9ca3af] text-sm">{t('assets.uploadModalHint')}</p>
             </div>
             {error ? <p className="text-[#ef4444] text-sm mt-3">{error}</p> : null}
             <div className="flex gap-3 pt-6">
@@ -161,7 +163,7 @@ export function Assets() {
                 Annuler
               </GlassButton>
               <GlassButton className="flex-1" disabled={busy} onClick={() => fileInputRef.current?.click()}>
-                {busy ? 'Upload...' : 'Choisir des fichiers'}
+                {busy ? `${t('assets.upload')}...` : t('assets.pickFiles')}
               </GlassButton>
             </div>
           </GlassCard>

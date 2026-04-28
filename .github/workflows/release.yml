@@ -3,20 +3,21 @@ name: Release
 on:
   push:
     branches:
-      - release
+      - main
+      - master
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Tag de release (ex: v1.2.3). Si vide, utilise le tag courant."
-        required: false
-        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  prepare:
     runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      should_release: ${{ steps.meta.outputs.should_release }}
 
     steps:
       - name: Checkout
@@ -30,87 +31,114 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Resolve release tag
-        id: vars
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve release metadata
+        id: meta
         shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF_NAME}"
-          else
-            TAG="v$(node -p \"require('./package.json').version\")"
-          fi
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          LATEST_VERSION_FROM_CHANGELOG="$(grep -m1 '^## ' CHANGELOG.md | sed -E 's/^##[[:space:]]+([^[:space:]]+).*/\1/' | sed -E 's/^[vV]?/v/')"
 
-          if [ -z "$TAG" ]; then
-            echo "Aucun tag de release trouvé."
+          if [ -z "$LATEST_VERSION_FROM_CHANGELOG" ]; then
+            echo "Impossible d'extraire la dernière version du changelog."
             exit 1
           fi
 
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST_VERSION_FROM_CHANGELOG" != "$TAG" ]; then
+            echo "La dernière version du changelog ($LATEST_VERSION_FROM_CHANGELOG) ne correspond pas à package.json ($TAG)."
+            exit 1
+          fi
 
-      - name: Create tag on release branch/manual run (if missing)
-        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/release'
+          SHOULD_RELEASE="true"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            SHOULD_RELEASE="false"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract latest release notes from CHANGELOG.md
+        if: steps.meta.outputs.should_release == 'true'
         shell: bash
         run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          git fetch --tags
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Le tag $TAG existe déjà."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+          node scripts/extract-release-notes.cjs --input CHANGELOG.md --output RELEASE_NOTES.md --latest
+
+      - name: Upload release notes artifact
+        if: steps.meta.outputs.should_release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
+  build-windows-artifacts:
+    runs-on: windows-latest
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Vite application
-        run: npm run build
-
-      - name: Validate package version
-        shell: bash
+      - name: Build Desktop and Player packages
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          EXPECTED_TAG="v${PACKAGE_VERSION}"
-          if [ "${EXPECTED_TAG}" != "${{ steps.vars.outputs.tag }}" ]; then
-            echo "La version package.json (${PACKAGE_VERSION}) ne correspond pas au tag ${{ steps.vars.outputs.tag }}."
-            exit 1
-          fi
+          npm run package:admin:win
+          npm run package:player:win
 
-      - name: Extract release notes from CHANGELOG.md
-        shell: bash
+      - name: Prepare renamed executables for release
+        shell: pwsh
         run: |
-          node scripts/extract-release-notes.cjs --input CHANGELOG.md --output RELEASE_NOTES.md --version "${{ steps.vars.outputs.tag }}"
+          $Version = '${{ needs.prepare.outputs.version }}'
+          New-Item -ItemType Directory -Path release-upload -Force | Out-Null
 
-      - name: Prepare runtime package
-        shell: bash
-        run: |
-          npm prune --omit=dev
-          mkdir -p release/scripts/security
-          cp -r dist release/dist
-          cp server.cjs release/server.cjs
-          cp package.json release/package.json
-          if [ -f package-lock.json ]; then cp package-lock.json release/package-lock.json; fi
-          cp scripts/security/adminAuthUtils.cjs release/scripts/security/adminAuthUtils.cjs
-          cp -r node_modules release/node_modules
-          cp CHANGELOG.md release/CHANGELOG.md
-          cp RELEASE_NOTES.md release/RELEASE_NOTES.md
+          Copy-Item "release/admin/Digital-Kiosk-Desktop-Setup-$Version.exe" "release-upload/Digital-Kiosk-Desktop-Setup-v$Version.exe" -Force
+          Copy-Item "release/admin/Digital-Kiosk-Desktop-Portable-$Version.exe" "release-upload/Digital-Kiosk-Desktop-Portable-v$Version.exe" -Force
+          Copy-Item "release/player/Digital-Kiosk-Player-Setup-$Version.exe" "release-upload/Digital-Kiosk-Player-Setup-v$Version.exe" -Force
+          Copy-Item "release/player/Digital-Kiosk-Player-Portable-$Version.exe" "release-upload/Digital-Kiosk-Player-Portable-v$Version.exe" -Force
 
-      - name: Archive release bundle
-        shell: bash
-        run: |
-          tar -czf "digital-kiosk-${{ steps.vars.outputs.tag }}.tar.gz" -C release .
+      - name: Upload Windows executables artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-executables
+          path: release-upload/*.exe
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-windows-artifacts
+    if: needs.prepare.outputs.should_release == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release notes artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: .
+
+      - name: Download Windows executables artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-executables
+          path: release-upload
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: Digital Kiosk ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Digital Kiosk ${{ needs.prepare.outputs.tag }}
           body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true
           files: |
-            digital-kiosk-${{ steps.vars.outputs.tag }}.tar.gz
-            CHANGELOG.md
-            RELEASE_NOTES.md
+            release-upload/*.exe

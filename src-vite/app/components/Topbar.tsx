@@ -5,6 +5,7 @@ import { appendSystemLog } from '../../services/logService';
 import { useNavigate } from 'react-router-dom';
 import { getSystemApiBase } from '../../services/systemApiBase';
 import { UpdateStatusBadge } from './UpdateStatusBadge';
+import { useTranslation } from '../i18n';
 
 interface TopbarProps {
   darkMode?: boolean;
@@ -23,6 +24,7 @@ export function Topbar({
   onSearchValueChange,
   searchEnabled = false
 }: TopbarProps) {
+  const { language, setLanguage, t } = useTranslation();
   const navigate = useNavigate();
   const currentSession = getCurrentAdminSession();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,10 +33,10 @@ export function Topbar({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const statusLabel = useMemo(() => {
     if (updateRunning) {
-      return 'En mise à jour';
+      return t('topbar.updating');
     }
-    return serverOnline ? 'Connecté' : 'Déconnecté';
-  }, [serverOnline, updateRunning]);
+    return serverOnline ? t('topbar.connected') : t('topbar.disconnected');
+  }, [serverOnline, t, updateRunning]);
   const statusClassName = useMemo(() => {
     if (updateRunning) {
       return 'text-[#f59e0b]';
@@ -129,7 +131,7 @@ export function Topbar({
           <button
             type="button"
             onClick={onOpenMenu}
-            aria-label="Ouvrir le menu"
+            aria-label={t('topbar.openMenu')}
             className="md:hidden p-2 hover:bg-[rgba(255,255,255,0.08)] rounded-[12px] transition-all duration-200"
           >
             <Menu size={20} className="text-[#e5e7eb]" />
@@ -139,7 +141,7 @@ export function Topbar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" size={20} />
           <input
             type="text"
-            placeholder={searchEnabled ? 'Rechercher dans le calendrier...' : 'Recherche (active sur Calendrier uniquement)'}
+            placeholder={searchEnabled ? t('topbar.searchCalendar') : t('topbar.searchDisabled')}
             value={searchEnabled ? searchValue : ''}
             onChange={(event) => {
               if (!searchEnabled) return;
@@ -169,13 +171,23 @@ export function Topbar({
 
         <button
           type="button"
+          onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+          className="px-3 py-2 hover:bg-[rgba(255,255,255,0.08)] rounded-[16px] transition-all duration-200 text-sm text-[#e5e7eb]"
+          title={language === 'fr' ? 'Switch to English' : 'Passer en français'}
+          aria-label={language === 'fr' ? 'Switch to English' : 'Passer en français'}
+        >
+          {language === 'fr' ? 'EN' : 'FR'}
+        </button>
+
+        <button
+          type="button"
           onClick={onOpenAbout}
           className="flex items-center gap-2 p-2 hover:bg-[rgba(255,255,255,0.08)] rounded-[16px] transition-all duration-200"
-          title="About"
-          aria-label="Ouvrir About"
+          title={t('common.about')}
+          aria-label={t('topbar.openAbout')}
         >
           <Info size={18} className="text-[#e5e7eb]" />
-          <span className="text-[#e5e7eb] text-sm">About</span>
+          <span className="text-[#e5e7eb] text-sm">{t('common.about')}</span>
         </button>
 
         <div ref={menuRef} className="relative">
@@ -193,15 +205,15 @@ export function Topbar({
           {menuOpen ? (
             <div className="absolute right-0 mt-2 w-64 rounded-[12px] border border-[rgba(255,255,255,0.14)] bg-[rgba(15,23,42,0.95)] backdrop-blur-[20px] p-3 shadow-xl z-[120] space-y-3">
               <div>
-                <p className="text-xs text-[#9ca3af]">Utilisateur</p>
+                <p className="text-xs text-[#9ca3af]">{t('common.user')}</p>
                 <p className="text-sm text-[#e5e7eb]">{currentSession?.username || 'admin'}</p>
               </div>
               <div>
-                <p className="text-xs text-[#9ca3af]">Rôle</p>
+                <p className="text-xs text-[#9ca3af]">{t('common.role')}</p>
                 <p className="text-sm text-[#e5e7eb] uppercase">{currentSession?.role || 'admin'}</p>
               </div>
               <div>
-                <p className="text-xs text-[#9ca3af]">Statut serveur</p>
+                <p className="text-xs text-[#9ca3af]">{t('topbar.serverStatus')}</p>
                 <p className={`text-sm ${statusClassName}`}>{statusLabel}</p>
               </div>
               <button
@@ -209,7 +221,7 @@ export function Topbar({
                 onClick={onLogout}
                 type="button"
               >
-                Logout
+                {t('common.logout')}
               </button>
             </div>
           ) : null}
