@@ -82,6 +82,17 @@ Default services:
 | `npm run electron:bundle` | Prepare the embedded backend bundle for packaging |
 | `npm run package:admin:win` | Build Windows admin installer + portable package |
 | `npm run package:player:win` | Build Windows player installer + portable package |
+| `npm run flutter:devices` | List Flutter devices for the manager app |
+| `npm run flutter:run:android` | Run the Flutter manager on Android |
+| `npm run flutter:run:ios` | Run the Flutter manager on iOS |
+| `npm run flutter:run:linux` | Run the Flutter manager on Linux |
+| `npm run flutter:run:macos` | Run the Flutter manager on macOS |
+| `npm run flutter:run:windows:workaround` | Run the Flutter manager on Windows via the NTFS mirror workaround |
+| `npm run flutter:build:linux` | Build the Flutter manager for Linux |
+| `npm run flutter:build:macos` | Build the Flutter manager for macOS |
+| `npm run flutter:build:windows:workaround` | Build the Flutter manager for Windows via the NTFS mirror workaround |
+| `npm run flutter:build:apk:workaround` | Build the Flutter manager APK via the Windows workaround |
+| `npm run flutter:build:appbundle:workaround` | Build the Flutter manager Android App Bundle via the Windows workaround |
 | `npm run docs:dev` | Start VitePress docs server |
 | `npm run docs:build` | Build VitePress documentation |
 | `npm run docs:api` | Generate TypeDoc API reference |
@@ -149,13 +160,32 @@ Le player conserve désormais son identité sur trois couches quand elles sont d
 
 ## Flutter Manager
 
-Le client Flutter situé dans `flutter_kiosk_manager/` couvre:
+Le client Flutter situé dans `Digital Kiosk Manager/` couvre:
 
 - Windows
 - macOS
 - Linux
 - Android
 - iOS
+
+Commandes utiles depuis la racine du repo:
+
+- `npm run flutter:devices`
+- `npm run flutter:run:windows:workaround`
+- `npm run flutter:run:linux`
+- `npm run flutter:run:macos`
+- `npm run flutter:run:android`
+- `npm run flutter:run:ios`
+
+Builds utiles:
+
+- `npm run flutter:build:windows:workaround`
+- `npm run flutter:build:linux`
+- `npm run flutter:build:macos`
+- `npm run flutter:build:apk:workaround`
+- `npm run flutter:build:appbundle:workaround`
+
+Remarque: il n’y a pas de cible web Flutter dans ce repo actuellement. Windows continue d’utiliser le contournement NTFS pour éviter l’échec de symlink plugin quand le SDK Flutter et le projet sont sur des volumes différents.
 
 Connexion mobile:
 

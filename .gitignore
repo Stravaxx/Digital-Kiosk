@@ -184,7 +184,8 @@ typedoc-output/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-public/
+public/docs/
+public/brandiing
 docs-api/
 build/
 database/
@@ -198,3 +199,7 @@ dist/
 .next/
 docs-api/
 release/
+electron/dist/
+electron/out/
+electron/build/
+electron/app-bundle.*

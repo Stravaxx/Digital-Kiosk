@@ -45,7 +45,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     { id: 'templates', path: '/templates', label: t('nav.templates'), icon: LayoutTemplate, permissionKey: 'layouts' },
     { id: 'storage', path: '/storage', label: t('nav.storage'), icon: Database, permissionKey: 'settings' },
     { id: 'logs', path: '/logs', label: t('nav.logs'), icon: FileText, permissionKey: 'logs' },
-    { id: 'fleet', path: '/fleet', label: t('nav.fleet'), icon: ActivitySquare, permissionKey: 'monitoring' },
     { id: 'alerts', path: '/alerts', label: t('nav.alerts'), icon: Bell, permissionKey: 'alerts' },
     { id: 'ops', path: '/ops', label: t('nav.ops'), icon: ShieldAlert, permissionKey: 'monitoring' },
     { id: 'settings', path: '/settings', label: t('nav.settings'), icon: Settings, permissionKey: 'settings' },

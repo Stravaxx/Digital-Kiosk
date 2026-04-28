@@ -15,7 +15,6 @@ import { Widgets } from './pages/Widgets';
 import { Storage } from './pages/Storage';
 import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
-import { Fleet } from './pages/Fleet';
 import { Alerts } from './pages/Alerts';
 import { Ops } from './pages/Ops';
 import { Player } from './pages/Player';
@@ -285,7 +284,7 @@ export default function App() {
           <Route path="/templates" element={<RequirePermission permissionKey="layouts"><Templates /></RequirePermission>} />
           <Route path="/storage" element={<RequirePermission permissionKey="settings"><Storage /></RequirePermission>} />
           <Route path="/logs" element={<RequirePermission permissionKey="logs"><Logs /></RequirePermission>} />
-          <Route path="/fleet" element={<RequirePermission permissionKey="monitoring"><Fleet /></RequirePermission>} />
+          <Route path="/fleet" element={<RequirePermission permissionKey="monitoring"><Navigate to="/ops" replace /></RequirePermission>} />
           <Route path="/alerts" element={<RequirePermission permissionKey="alerts"><Alerts /></RequirePermission>} />
           <Route path="/ops" element={<RequirePermission permissionKey="monitoring"><Ops /></RequirePermission>} />
           <Route path="/settings" element={<RequirePermission permissionKey="settings"><Settings /></RequirePermission>} />
